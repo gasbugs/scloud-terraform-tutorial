@@ -50,6 +50,8 @@ HTTP 오류가 반환되더라도 TCP와 TLS 연결은 된 것입니다. `connec
 
 ## 3. scloud 기본 프로필 설정
 
+> **Enterprise CLI 주의:** 아래 `~/.cmp`와 `openapi.samsungsdscloud.com` 방식은 구형 CMP CLI용이며 Enterprise 환경에서는 `Access key not found`가 발생할 수 있습니다. 현재 Enterprise 환경에서는 공식 `scp-cli`와 `~/.scp/cli-config.json`을 사용합니다. 설치, 공식 배포처 판별, 인증 및 Container Registry 생성 방법은 [Samsung Cloud Platform Enterprise CLI 설정 가이드](./SCLOUD_ENTERPRISE_CLI_GUIDE.md)를 먼저 확인합니다.
+
 SCP Console에서 발급한 값을 사용합니다. 실제 credential을 README나 셸 스크립트에 저장하지 않습니다.
 
 ```bash
