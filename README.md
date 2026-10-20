@@ -2,6 +2,8 @@
 
 이 프로젝트는 Samsung Cloud Platform(SCP) Enterprise 환경에 Ubuntu 24.04 Virtual Server 한 대와 SSH 접속에 필요한 네트워크를 Terraform으로 구성하는 실습입니다. 생성부터 접속 확인, outbound 통신 확인, 전체 삭제까지 한 디렉터리에서 수행합니다.
 
+SCP Container Registry의 생성부터 Docker Hub 이미지 업로드와 전체 정리까지는 [SCP Container Registry 생성·업로드·정리 튜토리얼](./SCLOUD_CONTAINER_REGISTRY_TUTORIAL.md)을 참고합니다.
+
 ## 프로젝트가 만드는 리소스
 
 - `10.10.0.0/16` VPC와 `10.10.1.0/24` General Subnet
@@ -19,12 +21,12 @@ Inbound SSH는 지정한 공인 IP 하나로 제한하지만 outbound는 `0.0.0.
 다음 도구와 권한이 필요합니다.
 
 - Terraform 1.13 이상 2.0 미만
-- `scloud` CLI와 `jq`
+- 공식 `scp-cli` v2.1과 `jq`
 - VPC, Subnet, Internet Gateway, Firewall Rule, Security Group, Public IP, Key Pair, Virtual Server 생성·삭제 권한
 
 ```bash
 terraform version
-scloud --version
+scp-cli --version
 jq --version
 ```
 
@@ -48,48 +50,45 @@ curl --connect-timeout 5 -I https://iam.e.samsungsdscloud.com/v1/endpoints
 
 HTTP 오류가 반환되더라도 TCP와 TLS 연결은 된 것입니다. `connect: connection timed out`이면 Terraform 실행 전에 환경과 endpoint부터 다시 확인합니다.
 
-## 3. scloud 기본 프로필 설정
+## 3. scp-cli 기본 설정
 
-> **Enterprise CLI 주의:** 아래 `~/.cmp`와 `openapi.samsungsdscloud.com` 방식은 구형 CMP CLI용이며 Enterprise 환경에서는 `Access key not found`가 발생할 수 있습니다. 현재 Enterprise 환경에서는 공식 `scp-cli`와 `~/.scp/cli-config.json`을 사용합니다. 설치, 공식 배포처 판별, 인증 및 Container Registry 생성 방법은 [Samsung Cloud Platform Enterprise CLI 설정 가이드](./SCLOUD_ENTERPRISE_CLI_GUIDE.md)를 먼저 확인합니다.
+Enterprise 환경에서는 공식 `scp-cli`와 `~/.scp/cli-config.json`을 사용합니다. 구형 CMP CLI의 `~/.cmp`, `configure set`, `openapi.samsungsdscloud.com` 설정은 사용하지 않습니다. 설치와 공식 배포처 확인은 [Samsung Cloud Platform Enterprise CLI 설정 가이드](./SCLOUD_ENTERPRISE_CLI_GUIDE.md)를 참고합니다.
 
-SCP Console에서 발급한 값을 사용합니다. 실제 credential을 README나 셸 스크립트에 저장하지 않습니다.
+SCP Console에서 Authentication Key를 발급한 뒤 다음 구조로 설정합니다. 실제 credential을 README나 셸 스크립트에 저장하지 않습니다.
 
-```bash
-scloud configure set cmp-url https://openapi.samsungsdscloud.com
-scloud configure set host https://openapi.samsungsdscloud.com
-scloud configure set current-profile default
-scloud configure set project-id YOUR_PROJECT_ID
-scloud configure set access-key YOUR_ACCESS_KEY
-scloud configure set access-secret YOUR_SECRET_KEY
+```json
+{
+  "auth_url": "https://iam.e.samsungsdscloud.com/v1/endpoints",
+  "access_key": "YOUR_ACCESS_KEY",
+  "access_secret_key": "YOUR_SECRET_KEY",
+  "default_scp_region": "kr-west1"
+}
 ```
 
-다음 명령은 credential도 출력할 수 있으므로 결과를 공유하거나 파일로 저장하지 않습니다.
-
 ```bash
-scloud configure list
+chmod 0600 "$HOME/.scp/cli-config.json"
+scp-cli scr registry list --format json
 ```
 
-`PLATFORM-GW-00002: Access key not found`가 나오면 등록한 키가 현재 SCP 환경이나 프로젝트에서 유효하지 않은 것입니다. 올바른 환경에서 키를 다시 발급합니다.
+목록 조회가 인증 오류 없이 끝나면 CLI 설정이 정상입니다. 설정 파일 본문과 `--debug` 출력에는 credential이나 서명이 포함될 수 있으므로 공유하지 않습니다.
 
-## 4. scloud 설정을 Terraform 형식으로 동기화
+## 4. scp-cli 설정을 Terraform 형식으로 동기화
 
 CLI와 Terraform provider는 서로 다른 설정 저장소를 사용합니다.
 
 ```text
-scloud CLI 프로필                 ~/.cmp
+scp-cli                           ~/.scp/cli-config.json
 samsungcloudplatformv2 provider  ~/.scpconf/config.json
                                  ~/.scpconf/credentials.json
 ```
 
-동기화 스크립트로 `default` 프로필을 Terraform 형식으로 변환합니다.
+동기화 스크립트로 공식 CLI 설정을 Terraform 형식으로 변환합니다. CLI의 `/v1/endpoints` 주소는 Provider가 요구하는 `/v1` 기준 주소로 자동 변환됩니다.
 
 ```bash
-./scripts/sync-scloud-terraform-config.sh \
-  --auth-url https://iam.e.samsungsdscloud.com/v1 \
-  --region kr-west1
+./scripts/sync-scp-cli-terraform-config.sh
 ```
 
-스크립트는 credential을 화면에 표시하지 않습니다. `.scpconf`에는 `0700`, JSON 파일에는 `0600`을 적용하며 기존 파일은 timestamp가 붙은 백업으로 보존합니다. 다른 프로필은 `--profile PROFILE_NAME`으로 선택합니다.
+스크립트는 credential을 화면에 표시하지 않습니다. `.scpconf`에는 `0700`, JSON 파일에는 `0600`을 적용하며 기존 파일은 timestamp가 붙은 백업으로 보존합니다. 다른 설정 파일은 `--source-file FILE`로 선택합니다.
 
 ## 5. Terraform 입력값 작성
 
@@ -250,14 +249,14 @@ state 명령이 아무것도 출력하지 않고 `test`가 종료 코드 `0`이�
 
 ### `Missing samsungcloudplatformv2 Auth URL`
 
-Provider가 `~/.scpconf`를 읽지 못한 상태입니다. `scloud configure set`만으로는 충분하지 않으므로 동기화 스크립트를 실행합니다.
+Provider가 `~/.scpconf`를 읽지 못한 상태입니다. `scp-cli`와 Terraform Provider의 기본 설정 경로가 다르므로 동기화 스크립트를 실행합니다.
 
 ### `iam.s.../v1/endpoints: connect: connection timed out`
 
 Enterprise 계정에 Samsung 내부용 endpoint를 사용한 경우입니다.
 
 ```bash
-./scripts/sync-scloud-terraform-config.sh \
+./scripts/sync-scp-cli-terraform-config.sh \
   --auth-url https://iam.e.samsungsdscloud.com/v1 \
   --region kr-west1
 ```
@@ -281,7 +280,7 @@ CLI 프로필의 키가 해당 SCP 환경에서 유효하지 않습니다. 올�
 ## 보안 주의사항
 
 - Access Key와 Secret Key를 `.tf`, `terraform.tfvars`, README에 기록하지 않습니다.
-- `scloud configure list` 결과에는 credential이 포함될 수 있으므로 공유하지 않습니다.
+- `~/.scp/cli-config.json` 본문과 `scp-cli --debug` 출력은 credential이 포함될 수 있으므로 공유하지 않습니다.
 - private key와 Terraform state를 같은 수준으로 보호합니다.
 - SSH 22번을 `0.0.0.0/0`에 개방하지 않습니다.
 - `terraform.tfvars`, state, saved plan과 PEM 파일을 Git에 commit하지 않습니다.

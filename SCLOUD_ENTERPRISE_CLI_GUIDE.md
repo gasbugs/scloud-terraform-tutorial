@@ -1,6 +1,6 @@
 # Samsung Cloud Platform Enterprise CLI 설정 가이드
 
-이 문서는 Samsung Cloud Platform(SCP) Enterprise 환경에서 공식 CLI를 설치하고 인증한 뒤 Container Registry를 생성하는 방법을 설명합니다.
+이 문서는 Samsung Cloud Platform(SCP) Enterprise 환경에서 공식 CLI를 설치하고 인증한 뒤 Container Registry를 생성하는 방법을 설명합니다. Docker Hub 이미지 업로드, 검증, Repository와 Registry 정리는 [SCP Container Registry 생성·업로드·정리 튜토리얼](./SCLOUD_CONTAINER_REGISTRY_TUTORIAL.md)에서 이어집니다.
 
 `PLATFORM-GW-00002: Access key not found`가 발생하더라도 Terraform이 같은 Access Key로 정상 동작한다면 키보다 CLI 종류와 endpoint 조합을 먼저 확인합니다.
 
@@ -59,18 +59,25 @@ GitHub 저장소 이름이나 설명에 `Samsung Cloud Platform CLI`가 적혀 �
 
 Enterprise Console을 사용하는 경우 `e` 환경의 주소를 사용합니다.
 
-## 1. 기존 CLI 확인
+## 1. 공식 CLI 여부 확인
 
 ```bash
-command -v scloud
-scloud --version
+command -v scp-cli
+scp-cli --version
 ```
 
-다음 특징이 보이면 구형 CMP CLI일 수 있습니다.
+공식 CLI는 실행 파일 이름과 버전이 다음 형태로 확인됩니다.
+
+```text
+/usr/bin/scp-cli
+scp-cli version v2.1.0
+```
+
+다음 특징의 별도 프로그램이 설치돼 있다면 구형 CMP CLI일 수 있으므로 Enterprise 작업에 사용하지 않습니다.
 
 - 버전 출력에 `scp-tool-cli`가 표시됨
 - Java 프로그램으로 실행됨
-- `scloud configure set cmp-url ...` 명령을 사용함
+- `configure set cmp-url ...` 형태의 명령을 사용함
 - 설정을 `~/.cmp`에 저장함
 
 현재 설치된 파일을 바로 삭제하지 않습니다. 문제 발생 시 비교하거나 복원할 수 있도록 그대로 보존하고 새 공식 CLI를 별도 이름으로 설치합니다.
@@ -96,7 +103,7 @@ chmod 0755 "$HOME/.local/bin/scp-cli"
 출력 예시는 다음과 같습니다.
 
 ```text
-scp-cli version v2.0.0
+scp-cli version v2.1.0
 ```
 
 `~/.local/bin`이 `PATH`에 없다면 셸 설정에 추가합니다.
@@ -135,43 +142,12 @@ chmod 0600 "$HOME/.scp/cli-config.json"
 
 키를 명령행 인자로 전달하면 셸 history나 프로세스 목록에 남을 수 있으므로 설정 파일을 사용하는 편이 안전합니다.
 
-## 4. `scloud` 명령 이름 사용
-
-기존 `/usr/local/bin/scloud`를 삭제하지 않고 사용자 경로에서 공식 CLI를 우선하도록 연결할 수 있습니다.
-
-```bash
-ln -s "$HOME/.local/bin/scp-cli" "$HOME/.local/bin/scloud"
-hash -r
-```
-
-이미 링크가 있다면 먼저 대상부터 확인합니다.
-
-```bash
-readlink -f "$HOME/.local/bin/scloud"
-```
-
-최종적으로 공식 CLI가 선택되는지 확인합니다.
-
-```bash
-command -v scloud
-scloud --version
-```
-
-정상 예시는 다음과 같습니다.
-
-```text
-/home/USER/.local/bin/scloud
-scp-cli version v2.0.0
-```
-
-기존 CMP CLI가 필요하면 `/usr/local/bin/scloud`처럼 전체 경로로 실행할 수 있습니다.
-
-## 5. 인증 및 endpoint 검증
+## 4. 인증 및 endpoint 검증
 
 읽기 전용 Registry 목록 명령으로 인증을 확인합니다.
 
 ```bash
-scloud scr registry list
+scp-cli scr registry list --format json
 ```
 
 Registry가 없으면 출력이 비어 있을 수 있습니다. 오류 없이 종료되면 인증과 서비스 endpoint 탐색이 성공한 것입니다.
@@ -189,14 +165,14 @@ Access key not found
 ```
 
 ```bash
-command -v scloud
-scloud --version
+command -v scp-cli
+scp-cli --version
 stat -c '%a %n' "$HOME/.scp/cli-config.json"
 ```
 
-설정 파일 내용이나 `scloud --debug`, `--dry-run` 전체 결과는 공유하지 않습니다. 디버그 출력에는 Access Key, 서명 또는 요청 헤더가 포함될 수 있습니다.
+설정 파일 내용이나 `scp-cli --debug`, `--dry-run` 전체 결과는 공유하지 않습니다. 디버그 출력에는 Access Key, 서명 또는 요청 헤더가 포함될 수 있습니다.
 
-## 6. Container Registry 생성
+## 5. Container Registry 생성
 
 Registry 이름은 영문 소문자로 시작하고 영문 소문자와 숫자만 사용하며 길이는 3~25자여야 합니다. 하이픈은 사용할 수 없습니다.
 
@@ -207,7 +183,7 @@ REGISTRY_NAME="scloudtutorial01"
 이름 중복 여부를 확인합니다.
 
 ```bash
-scloud scr registry name-duplication show \
+scp-cli scr registry name-duplication show \
   --name "$REGISTRY_NAME" \
   --format json
 ```
@@ -217,7 +193,7 @@ scloud scr registry name-duplication show \
 외부에서 인증 후 사용할 수 있는 비공개 Registry를 생성합니다.
 
 ```bash
-scloud scr registry create \
+scp-cli scr registry create \
   --name "$REGISTRY_NAME" \
   --private_acl_enabled=false \
   --private_acl_resources='[]' \
@@ -244,14 +220,14 @@ scloud scr registry create \
 }
 ```
 
-## 7. 생성 상태 확인
+## 6. 생성 상태 확인
 
 생성 응답의 ID를 사용합니다.
 
 ```bash
 REGISTRY_ID="YOUR_REGISTRY_ID"
 
-scloud scr registry show \
+scp-cli scr registry show \
   --registry_id "$REGISTRY_ID" \
   --format json
 ```
@@ -267,12 +243,12 @@ public_visible_enabled: false
 이름으로 목록을 조회할 수도 있습니다.
 
 ```bash
-scloud scr registry list \
+scp-cli scr registry list \
   --name "$REGISTRY_NAME" \
   --format json
 ```
 
-## 8. 자주 발생하는 오류
+## 7. 자주 발생하는 오류
 
 ### `PLATFORM-GW-00002: Access key not found`
 
@@ -303,12 +279,12 @@ ScloudTutorial01
 
 Container Registry의 내부 Object Storage와 endpoint 프로비저닝에는 시간이 걸릴 수 있습니다. `Failed`가 아니라 `Creating`이면 잠시 후 `show` 명령을 다시 실행합니다.
 
-## 9. Registry 삭제
+## 8. Registry 삭제
 
 더 이상 사용하지 않는 Registry는 과금 방지를 위해 삭제합니다. 삭제 전 Registry ID와 이름을 다시 확인합니다.
 
 ```bash
-scloud scr registry show \
+scp-cli scr registry show \
   --registry_id "$REGISTRY_ID" \
   --format json
 ```
@@ -316,17 +292,17 @@ scloud scr registry show \
 삭제 명령의 최신 옵션은 help에서 확인합니다.
 
 ```bash
-scloud scr registry delete --help
+scp-cli scr registry delete --help
 ```
 
 Registry 내부에 필요한 이미지가 없는지 확인한 뒤 삭제를 수행합니다.
 
 ## 최종 확인 목록
 
-- `scloud --version`이 `scp-cli version ...`을 출력하는가
-- `command -v scloud`가 사용자 경로의 CLI를 가리키는가
+- `scp-cli --version`이 `scp-cli version v2.1.0`을 출력하는가
+- `command -v scp-cli`가 공식 CLI를 가리키는가
 - 설정 파일이 `~/.scp/cli-config.json`인가
 - Enterprise `auth_url`이 `iam.e.../v1/endpoints`인가
-- `scloud scr registry list`가 인증 오류 없이 실행되는가
+- `scp-cli scr registry list`가 인증 오류 없이 실행되는가
 - Registry가 `Running` 상태인가
 - Public endpoint와 이미지 공개 설정이 의도한 값인가

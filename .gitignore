@@ -14,3 +14,6 @@ crash.*.log
 .scpconf/
 .cmp/
 
+# Local-only approval request drafts
+SCR_PERMISSION_REQUEST_EMAIL.md
+
