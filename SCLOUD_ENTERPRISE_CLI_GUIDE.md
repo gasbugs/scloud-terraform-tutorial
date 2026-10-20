@@ -193,7 +193,7 @@ scp-cli scr registry name-duplication show \
 외부에서 인증 후 사용할 수 있는 비공개 Registry를 생성합니다.
 
 ```bash
-scp-cli scr registry create \
+REGISTRY_CREATE_OUTPUT=$(scp-cli scr registry create \
   --name "$REGISTRY_NAME" \
   --private_acl_enabled=false \
   --private_acl_resources='[]' \
@@ -201,7 +201,11 @@ scp-cli scr registry create \
   --public_acl_resources='[]' \
   --public_endpoint_enabled=true \
   --public_visible_enabled=false \
-  --format json
+  --format json)
+
+REGISTRY_ID=$(printf '%s' "$REGISTRY_CREATE_OUTPUT" | jq -r '.id')
+test -n "$REGISTRY_ID"
+test "$REGISTRY_ID" != null
 ```
 
 이 설정의 의미는 다음과 같습니다.
@@ -215,6 +219,7 @@ scp-cli scr registry create \
 
 ```json
 {
+  "id": "REGISTRY_ID",
   "message": "Registry Successfully Created",
   "state": "Creating"
 }
@@ -222,11 +227,9 @@ scp-cli scr registry create \
 
 ## 6. 생성 상태 확인
 
-생성 응답의 ID를 사용합니다.
+생성 응답에서 자동으로 추출한 ID를 사용합니다.
 
 ```bash
-REGISTRY_ID="YOUR_REGISTRY_ID"
-
 scp-cli scr registry show \
   --registry_id "$REGISTRY_ID" \
   --format json

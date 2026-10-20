@@ -57,7 +57,7 @@ scp-cli scr registry name-duplication show \
 응답의 `result`가 `false`이면 같은 이름의 Registry가 없다는 뜻입니다. 다음 설정은 외부 Docker 환경에서 인증 후 사용할 수 있도록 public endpoint를 켜되, 이미지를 익명 공개하지 않습니다.
 
 ```bash
-scp-cli scr registry create \
+REGISTRY_CREATE_OUTPUT=$(scp-cli scr registry create \
   --name "$REGISTRY_NAME" \
   --private_acl_enabled=false \
   --private_acl_resources='[]' \
@@ -65,14 +65,16 @@ scp-cli scr registry create \
   --public_acl_resources='[]' \
   --public_endpoint_enabled=true \
   --public_visible_enabled=false \
-  --format json
+  --format json)
+
+REGISTRY_ID=$(printf '%s' "$REGISTRY_CREATE_OUTPUT" | jq -r '.id')
+test -n "$REGISTRY_ID"
+test "$REGISTRY_ID" != null
 ```
 
-생성 요청 직후에는 `Creating` 상태일 수 있습니다. 응답에서 Registry ID를 복사해 다음 셸 변수에 넣습니다.
+공식 `Create Registry 1.1` 응답의 최상위 `id`가 `REGISTRY_ID`에 자동으로 저장됩니다. 빈 값이나 `null`이면 다음 단계로 진행하지 않습니다. 생성 요청 직후에는 `Creating` 상태일 수 있습니다.
 
 ```bash
-REGISTRY_ID="YOUR_REGISTRY_ID"
-
 scp-cli scr registry show \
   --registry_id "$REGISTRY_ID" \
   --format json
