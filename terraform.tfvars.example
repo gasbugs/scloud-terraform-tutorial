@@ -1,0 +1,10 @@
+zone             = "kr-west1-b"
+ssh_allowed_cidr = "198.51.100.24/32"
+private_key_filename = "./tf-ssh.pem"
+
+# Set this before apply. Image IDs differ by SCP service zone.
+ubuntu_image_id = "REPLACE_WITH_UBUNTU_24_04_STANDARD_IMAGE_ID"
+
+# Enterprise SCP uses IGW. Samsung-internal and Sovereign environments may differ.
+gateway_type = "IGW"
+
