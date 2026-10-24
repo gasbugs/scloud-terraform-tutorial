@@ -18,7 +18,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 > 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 현재 작성 환경에는 Docker 실행 명령이 없어 이미지 빌드, 데이터 다운로드, CUDA 학습, SCP 자원 생성은 실행하지 않았습니다. 아래 `PASS`는 사용자가 실제 실행 후 확인할 기준이지 이미 얻은 실측 결과가 아닙니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
 
-> 실행 이슈: 사용자가 5-2의 File Storage 생성 명령에서 `Bad Request`를 보고했습니다. 현재 원인은 미확인입니다. 해당 명령은 성공 검증된 명령이 아니며, 응답 본문의 오류 코드·메시지와 계정에서 지원하는 존/볼륨 유형을 확인한 뒤 수정해야 합니다.
+> 실행 이슈: 사용자가 5-1의 File Storage 생성 명령에서 `Bad Request`를 보고했습니다. 현재 원인은 미확인입니다. 해당 명령은 성공 검증된 명령이 아니며, 응답 본문의 오류 코드·메시지와 계정에서 지원하는 존/볼륨 유형을 확인한 뒤 수정해야 합니다.
 
 ## 1. 무엇을 만드는가
 
@@ -40,23 +40,23 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 **이번 규모는 Terraform 없이 `scp-cli` + Docker + 콘솔로 진행합니다.** 기존 개발용 Linux 머신을 재사용하고, 새 VPC·GPU VM·Kubernetes·약정 Workspace를 만들지 않습니다.
 
-| 필요한 것 | 준비 방법 | 없을 때 |
+| 필요한 것 | 준비 방법 | 확인·대응 |
 |---|---|---|
 | Linux x86_64 준비 머신 | 기존 PC/개발 서버 사용. GPU 불필요 | Docker를 사용할 수 있는 기존 Linux 환경 확보 |
 | SCP 인증키·권한 | 발급받은 교육 계정 사용 | 담당자에게 File Storage/SCR/SAT/ServiceWatch 권한 요청 |
-| File Storage | SAT와 호환되는 기존 고성능 SSD 재사용 | 아래 CLI로 1개 생성 |
-| SCR | 기존 레지스트리 우선 사용 | 아래 CLI로 생성 후 접근 대상 설정 |
+| File Storage | 실습 전용 NFS 고성능 SSD 볼륨 1개 새로 생성 | SAT 연결 가능한 존·quota 확인 |
+| SCR | 기존 레지스트리 우선 사용 | 없으면 콘솔에서 생성 후 접근 대상 설정 |
 | SAT Volume 연결 | 콘솔에서 File Storage 연결 | quota 확인 후 1회 연결 |
 | Training Job | 콘솔에서 1GPU Job 실행 | smoke 통과 후 full 실행 |
 
 공개 CLI의 AI-ML 목록에는 AI&MLOps Platform과 Cloud ML만 확인됐습니다. `scp-cli sat job create` 같은 미확인 명령을 만들지 않습니다. SAT Volume 연결/Job 생성은 공식 How-to의 콘솔 절차를 사용합니다. 향후 네트워크·개발 서버까지 반복 구축해야 하면 그때 Terraform으로 확장합니다.
 
-### 실행 전에 적어 둘 값
+### 실행 전 확인하고 진행 중 기록할 값
 
 - Enterprise Account: 발급받은 계정. 이 가이드의 기본 리전은 `kr-west1`, File Storage 존은 `kr-west1-a`입니다. 공식 CLI 문서의 예시 값을 기준으로 하며, 계정에서 SAT에 연결 가능한 존인지 생성 전에 확인합니다.
 - 1노드·1GPU 지원 여부, GPU 종류와 VRAM(24GB급 권장), BF16 지원 여부.
 - GPU 상품 단가·최소 청구 단위·Job 종료 후 자원 해제 기준.
-- 기존 File Storage ID, NFS 마운트 주소, SAT 연결 가능 여부.
+- 새 File Storage의 존·이름과 SAT 연결 가능 여부. 생성 후 ID와 NFS 마운트 주소를 기록합니다.
 - SCR ID, 이미지 push/pull 엔드포인트, 준비 머신과 SAT의 접근 경로.
 
 **실제 상품이 최소 4GPU라면 1GPU 가격으로 계산하지 마세요.** 지원 SKU가 계획과 다르면 자원 생성 전에 예산을 재산정합니다.
@@ -69,7 +69,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 |---|---|---|
 | 저장소 받기 | Linux 준비 서버의 Bash | 문서 첫 `git clone` 블록 실행 |
 | 4~8절 | Linux 준비 서버의 Bash | `~/scloud-terraform-tutorial/labs/ynat-full-finetune`에서 진행 |
-| 5절 | 같은 준비 서버 + SCP 콘솔 | 기존 볼륨이면 5-1만, 없으면 5-2만 실행한 뒤 5-3으로 이동 |
+| 5절 | 같은 준비 서버 + SCP 콘솔 | 5-1에서 새 File Storage를 생성한 뒤 5-2에서 SAT에 연결 |
 | 6절 | 같은 준비 서버 + SCP 콘솔 | 기존 SCR이면 6-1, 없으면 6-2 선택 |
 | 9·11절 | SCP 콘솔의 Job Command 입력란 | 서버 터미널에서 실행하는 명령이 아님 |
 | 10·12절 | NFS 접근 가능한 내부 Linux 서버 | 준비 서버와 다를 수 있음. 변수·마운트를 별도로 설정 |
@@ -83,7 +83,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 준비 서버의 Bash에서 이 문서 맨 위의 `git clone` 명령으로 저장소를 받습니다. 이미 받았다면 아래 작업 디렉터리로 이동하면 됩니다. 개인 컴퓨터의 절대 경로나 SSH 파일 복사 명령은 필요하지 않습니다.
 
-이후 4~8절은 준비 서버의 같은 Bash 세션에서 실행합니다. 5·6절의 재사용/생성 경로는 각각 하나만 선택합니다. 새로 접속했다면 아래 작업 디렉터리와 4절의 PATH를 다시 설정하세요.
+이후 4~8절은 준비 서버의 같은 Bash 세션에서 실행합니다. 6절의 SCR 재사용/생성 경로 중 하나만 선택합니다. 새로 접속했다면 아래 작업 디렉터리와 4절의 PATH를 다시 설정하세요.
 
 ```bash
 cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
@@ -168,57 +168,59 @@ PYCONFIG
 
 `evidence/scp-cli-version.txt`에는 CLI 버전이 기록됩니다. 두 목록 파일은 조회 출력을 저장하며 자원이 없으면 비어 있을 수 있습니다. 목록 조회가 `401/403`으로 실패하면 키 상태·대상 계정·권한·인증키 보안 설정을 먼저 확인하세요. 재발급만 반복하지 않습니다.
 
-## 5. File Storage 준비
+## 5. 새 File Storage 생성 및 SAT 연결
 
-### 5-1. 경로 A — 기존 자원이 있으면 재사용 (5-2 생략)
+### 5-1. 새 File Storage 생성 — CLI
 
-아래 변수에는 실제 ID를 넣습니다.
-
-```bash
-export SAT_FILE_VOLUME_ID='실제-기존-볼륨-ID'
-scp-cli filestorage volume show --volume_id "$SAT_FILE_VOLUME_ID"
-```
-
-고성능 SSD, 접근 가능한 존, 충분한 여유 공간, 기존 데이터 보존 및 실습 전용 출력 경로 사용이 가능한지 확인합니다. 본 예제는 실행 1회당 모델 가중치 약 2GB(FP32)와 소량의 로그를 저장하므로 결과용 여유 공간 10GB 이상을 권장합니다. File Storage의 최소 청구 용량은 별도입니다.
-
-### 5-2. 경로 B — 기존 자원이 없을 때만 생성 (5-1 생략)
-
-4절의 CLI 설치·인증을 완료한 Linux 준비 서버의 Bash에서 아래 블록을 순서대로 실행합니다. 실제 유료 자원을 생성하는 단계입니다.
+4절의 CLI 설치·인증을 완료한 Linux 준비 서버의 Bash에서 실행합니다. 실습 전용 File Storage를 새로 1개 생성하므로 비용이 발생합니다. 본 예제는 실행 1회당 모델 가중치 약 2GB(FP32)와 소량의 로그를 저장하므로 결과용 여유 공간 10GB 이상을 권장합니다. File Storage의 최소 청구 용량은 별도입니다.
 
 `kr-west1`은 CLI 설정의 **리전**, `kr-west1-a`는 생성 명령의 **존**입니다. [CLI Common](https://docs.e.samsungsdscloud.com/clireference/cli-common/)과 [CreateVolume 1.2](https://docs.e.samsungsdscloud.com/clireference/storage/filestorage/clis/createvolume/1.2/)의 예시를 사용합니다. 계정의 SAT에서 연결 가능한 존인지 먼저 확인합니다.
 
-먼저 기존 볼륨과 설치된 CLI의 생성 옵션을 조회합니다.
+설치된 CLI의 생성 옵션과 현재 볼륨 목록을 확인합니다. 목록은 생성 전 상태와 타임아웃 후 중복 여부를 확인하는 데 사용합니다.
 
 ```bash
 cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
 export PATH="$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune/tools:$PATH"
-scp-cli filestorage volume list
-scp-cli filestorage volume create --help
+(
+  set -euo pipefail
+  scp-cli filestorage volume create --help
+  scp-cli filestorage volume list
+)
 ```
 
-같은 용도의 기존 볼륨이 없을 때 다음 명령을 **한 번만** 실행합니다.
+새 이름을 생성해 기록한 뒤 생성 요청을 **한 번만** 보냅니다. 출력된 이름은 응답이 지연되거나 타임아웃될 때 조회에 사용합니다.
 
 ```bash
-scp-cli filestorage volume create \
-  --zone kr-west1-a \
-  --type_name HighPerformanceSSD \
-  --protocol NFS \
-  --name satynatdemo
+(
+  set -euo pipefail
+  SAT_VOLUME_NAME="satynat$(date -u +%y%m%d%H%M%S)"
+  printf '새 File Storage 이름: %s\n' "$SAT_VOLUME_NAME"
+  printf '%s\n' "$SAT_VOLUME_NAME" > evidence/file-volume-name.txt
+  scp-cli filestorage volume create \
+    --zone kr-west1-a \
+    --type_name HighPerformanceSSD \
+    --protocol NFS \
+    --name "$SAT_VOLUME_NAME"
+)
 ```
 
 생성 응답의 `volume_id`를 입력해 조회합니다. SAT Volume ID가 아니라 File Storage ID입니다.
 
 ```bash
-read -r -p '생성 응답의 volume_id: ' SAT_FILE_VOLUME_ID
-scp-cli filestorage volume show --volume_id "$SAT_FILE_VOLUME_ID"
+(
+  set -euo pipefail
+  read -r -p '생성 응답의 volume_id: ' SAT_FILE_VOLUME_ID
+  [[ -n "$SAT_FILE_VOLUME_ID" ]] || { echo 'volume_id가 필요합니다.' >&2; exit 1; }
+  scp-cli filestorage volume show --volume_id "$SAT_FILE_VOLUME_ID"
+)
 ```
 
-최종 준비 완료 상태를 콘솔에서 확인한 뒤 5-3으로 진행합니다. 생성 요청이 타임아웃되면 `scp-cli filestorage volume list`로 먼저 확인하고, 생성 명령을 무조건 재실행하지 않습니다.
+생성 요청이 타임아웃되면 `scp-cli filestorage volume list --name "$(cat evidence/file-volume-name.txt)"`로 먼저 확인하고, 생성 명령을 무조건 재실행하지 않습니다. `Bad Request`가 나면 오류 본문과 계정의 존·볼륨 유형·권한·quota를 확인하고, 성공 전에는 5-2로 진행하지 않습니다. 최종 준비 완료 상태를 콘솔에서 확인합니다.
 
-### 5-3. SAT에 연결 — 콘솔 1회
+### 5-2. SAT에 연결 — 콘솔 1회
 
 1. **Simple AI Training → Volume → Volume 연결**로 이동합니다.
-2. Volume명 `ynat-results`, 위 File Storage를 선택합니다.
+2. Volume명 `ynat-results`, 위에서 새로 만든 File Storage를 선택합니다.
 3. 생성된 SAT Volume 이름/ID를 기록합니다. File Storage ID와 SAT Volume ID는 구분합니다.
 4. quota `SAT.FILE_STORAGE.MOUNT.MAX.COUNT`가 1 이상이어야 합니다. 부족하면 Quota Service에서 변경 요청합니다.
 
@@ -508,7 +510,7 @@ ls -lh "$SAT_RUN_DIR/model"
 1. Job `Completed/Failed`만 보고 끝내지 말고 GPU 할당이 해제됐는지 확인합니다.
 2. `TIMEOUT` 또는 로그가 멈춘 상태면 콘솔의 Job 삭제/해지 절차로 남은 작업을 정리하고 실제 해제까지 확인합니다.
 3. 출력은 삭제 전에 별도 보관합니다. 학습 스크립트 timeout은 클라우드 과금 차단을 보장하지 않습니다.
-4. 기존 File Storage/SCR은 삭제하지 않습니다. 이번에 새로 만든 전용 자원도 필요한 결과를 보관하고 사용 주체를 확인한 뒤에만 정리합니다.
+4. 이번에 새로 만든 File Storage와 SAT Volume은 필요한 결과를 보관하고 사용 주체를 확인한 뒤 정리합니다. 기존 SCR은 삭제하지 않습니다.
 5. 학습 과정에서 만들지 않은 약정 Workspace·공유 볼륨은 건드리지 않습니다.
 6. **이미지를 push했던 준비 서버로 돌아와** 아래를 수행합니다. 새 세션에서도 실행할 수 있도록 호스트를 다시 입력합니다.
 

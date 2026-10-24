@@ -10,7 +10,8 @@ if [[ $# -gt 2 ]]; then
 fi
 command -v scp-cli >/dev/null || { echo 'Install scp-cli and configure authentication first.' >&2; exit 1; }
 SAT_ZONE="${1:-kr-west1-a}"
-SAT_VOLUME_NAME="${2:-satynatdemo}"
+SAT_VOLUME_NAME="${2:-satynat$(date -u +%y%m%d%H%M%S)}"
+[[ "$SAT_VOLUME_NAME" =~ ^[a-z][a-z0-9_]{2,20}$ ]] || { echo 'Volume name must be 3-21 lowercase letters, digits, or underscores and start with a letter.' >&2; exit 2; }
 # Region and availability zone are separate values; reject mismatches before creation.
 python3 - "$SAT_ZONE" <<'PYCONFIG'
 import json, sys
@@ -23,6 +24,8 @@ if region != expected:
 print(f'CLI region={region}; File Storage zone={sys.argv[1]}')
 PYCONFIG
 EVIDENCE_DIR="$(mktemp -d "$LAB_DIR/evidence-create-XXXXXXXX")"
+printf '%s\n' "$SAT_VOLUME_NAME" > "$EVIDENCE_DIR/volume-name.txt"
+printf 'Request evidence: %s\n' "$EVIDENCE_DIR"
 # Validate installed CLI options before submitting a billable request.
 scp-cli filestorage volume create --help > "$EVIDENCE_DIR/create-help.txt"
 for option in zone type_name protocol name; do
