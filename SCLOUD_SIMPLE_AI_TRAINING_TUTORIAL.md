@@ -16,9 +16,9 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 작성일: 2026-10-23. 대상: Simple AI Training의 **Training Job**.
 
-> 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 교육 계정에서 File Storage `SSD`/`kr-west1-b` 테스트 생성·조회 후 삭제를 확인했습니다. SCR 생성 명령은 로컬 `--dry-run true` 파싱만 검증했고 실제 Registry/Repository는 만들지 않았습니다. Docker 이미지 빌드, 데이터 다운로드, CUDA 학습과 SAT 연결은 실행하지 않았습니다. 아래 `PASS`는 사용자가 실제 실행 후 확인할 기준이지 이미 얻은 실측 결과가 아닙니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
+> 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 교육 계정에서 File Storage `SSD`/`kr-west1-b` 테스트 생성·조회 후 삭제를 확인했지만, SAT 연결에 필요한 `HighPerformanceSSD`의 지원 존과 실제 SAT 연결은 검증하지 못했습니다. SCR 생성 명령은 로컬 `--dry-run true` 파싱만 검증했으며, 이 가이드의 검증 과정에서 Registry/Repository를 생성하거나 이미지를 업로드하지 않았습니다. Docker 이미지 빌드, 데이터 다운로드, CUDA 학습도 실행하지 않았습니다. 아래 `PASS`는 사용자가 실제 실행 후 확인할 기준이지 이미 얻은 실측 결과가 아닙니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
 
-> 실행 이슈: 사용자가 5-1의 File Storage 생성 명령에서 `Bad Request`를 보고했습니다. 오류 코드는 `filestorage.BadRequest.Invalid.zone`이며, 이전 예시의 `kr-west1-a`는 `SSD`로도 거부됐습니다. `SSD`/`kr-west1-b`는 이 교육 계정에서 생성과 조회에 성공했습니다. 다른 계정은 콘솔에서 지원 조합을 확인해야 합니다.
+> 실행 이슈: `HighPerformanceSSD`/`kr-west1-a` 생성 요청은 `400 Bad Request`였고, `SSD`/`kr-west1-a`는 `filestorage.BadRequest.Invalid.zone`으로 거부됐습니다. `SSD`/`kr-west1-b`는 테스트 생성·조회 후 삭제했지만 SAT 호환성은 확인되지 않았습니다. 5절의 `HighPerformanceSSD` 지원 존을 계정에서 확인하기 전에는 생성 요청을 보내지 않습니다.
 
 ## 1. 무엇을 만드는가
 
@@ -44,7 +44,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 |---|---|---|
 | Linux x86_64 준비 머신 | kr-west1의 기존 SCP 내부 서버 사용. GPU 불필요 | Docker·Private SCR·File Storage NFS·외부 다운로드 경로 확인 |
 | SCP 인증키·권한 | 발급받은 교육 계정 사용 | 담당자에게 File Storage/SCR/SAT/ServiceWatch 권한 요청 |
-| File Storage | 실습 전용 NFS SSD 볼륨 1개 새로 생성 | SAT 연결 가능한 존·quota 확인 |
+| File Storage | 실습 전용 NFS 고성능 SSD(`HighPerformanceSSD`) 볼륨 1개 새로 생성 | 계정에서 SAT 호환 존·quota 확인 전에는 생성 중단 |
 | SCR | 실습 전용 Registry와 Repository를 CLI로 새로 생성 | 생성 상태·push/pull 접근 확인 |
 | SAT Volume 연결 | 콘솔에서 File Storage 연결 | quota 확인 후 1회 연결 |
 | Training Job | 콘솔에서 1GPU Job 실행 | smoke 통과 후 full 실행 |
@@ -53,7 +53,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 ### 실행 전 확인하고 진행 중 기록할 값
 
-- Enterprise Account: 발급받은 계정. 이 가이드의 기본 리전은 `kr-west1`, File Storage 존은 이 교육 계정에서 검증한 `kr-west1-b`입니다. 계정에서 SAT에 연결 가능한 존인지 생성 전에 확인합니다.
+- Enterprise Account: 발급받은 계정. 이 가이드의 기본 리전은 `kr-west1`입니다. File Storage 존은 정해 두지 않았으므로, 계정에서 SAT에 연결 가능한 `HighPerformanceSSD` 존을 확인해 `SAT_FILE_ZONE`으로 입력합니다.
 - 1노드·1GPU 지원 여부, GPU 종류와 VRAM(24GB급 권장), BF16 지원 여부.
 - GPU 상품 단가·최소 청구 단위·Job 종료 후 자원 해제 기준.
 - 새 File Storage의 존·이름과 SAT 연결 가능 여부. 생성 후 ID와 NFS 마운트 주소를 기록합니다.
@@ -174,7 +174,7 @@ PYCONFIG
 
 4절의 CLI 설치·인증을 완료한 Linux 준비 서버의 Bash에서 실행합니다. 실습 전용 File Storage를 새로 1개 생성하며, 저장 데이터 사용량에 따라 비용이 발생합니다. 본 예제는 실행 1회당 모델 가중치 약 2GB(FP32)와 소량의 로그를 저장하므로 결과용 여유 공간 10GB 이상을 권장합니다. File Storage의 최소 청구 용량은 별도입니다.
 
-`kr-west1`은 CLI 설정의 **리전**, `kr-west1-b`는 생성 명령의 **존**입니다. `SSD`/`kr-west1-b`는 이 교육 계정에서 검증한 조합입니다. [CLI Common](https://docs.e.samsungsdscloud.com/clireference/cli-common/)과 [CreateVolume 1.2](https://docs.e.samsungsdscloud.com/clireference/storage/filestorage/clis/createvolume/1.2/)에서 옵션 형식을 확인하고, 다른 계정은 콘솔의 File Storage 생성 화면에서 볼륨 유형별 지원 존과 SAT 연결 가능 여부를 확인합니다. 삼성SDS는 [고성능 SSD를 Multi-node GPU Cluster 전용](https://www.samsungsds.com/kr/techreport/what-is-cloud-storage.html)으로 설명합니다.
+`kr-west1`은 CLI 설정의 **리전**이고 생성 명령의 **존**은 별도 값입니다. [SAT Training Job/Volume How-to](https://docs.e.samsungsdscloud.com/userguide/ai_ml/simple_ai_training/how_to_guides/)의 Volume 연결 대상은 고성능 SSD(`HighPerformanceSSD`)입니다. `SSD` 볼륨을 생성할 수 있었다는 사실은 SAT 연결 가능성을 입증하지 않습니다. 실습 계정에서 `HighPerformanceSSD` 생성과 SAT 연결을 모두 지원하는 존을 담당자 또는 계정의 서비스 안내에서 먼저 확인해 `SAT_FILE_ZONE`에 입력하세요. 아직 확인하지 못했다면 생성 명령을 실행하지 않습니다. [CLI Common](https://docs.e.samsungsdscloud.com/clireference/cli-common/)과 [CreateVolume 1.2](https://docs.e.samsungsdscloud.com/clireference/storage/filestorage/clis/createvolume/1.2/)에서 옵션 형식을 확인합니다.
 
 설치된 CLI의 생성 옵션과 현재 볼륨 목록을 확인합니다. 목록은 생성 전 상태와 타임아웃 후 중복 여부를 확인하는 데 사용합니다.
 
@@ -188,17 +188,20 @@ export PATH="$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune/tools:$PATH
 )
 ```
 
-새 이름을 생성해 기록한 뒤 생성 요청을 **한 번만** 보냅니다. 출력된 이름은 응답이 지연되거나 타임아웃될 때 조회에 사용합니다.
+계정에서 확인한 SAT 호환 존을 입력하고 새 이름을 기록한 뒤 생성 요청을 **한 번만** 보냅니다. 존을 확인하지 못했다면 Enter를 눌러 중단하세요. 출력된 이름은 응답이 지연되거나 타임아웃될 때 조회에 사용합니다.
 
 ```bash
 (
   set -euo pipefail
+  read -r -p '계정에서 확인한 SAT 호환 HighPerformanceSSD 존 (미확인 시 Enter): ' SAT_FILE_ZONE
+  [[ -n "$SAT_FILE_ZONE" ]] || { echo '검증된 SAT 호환 존이 없어 생성 중단' >&2; exit 1; }
+  printf '%s\n' "$SAT_FILE_ZONE" > evidence/file-volume-zone.txt
   SAT_VOLUME_NAME="satynat$(date -u +%y%m%d%H%M%S)"
   printf '새 File Storage 이름: %s\n' "$SAT_VOLUME_NAME"
   printf '%s\n' "$SAT_VOLUME_NAME" > evidence/file-volume-name.txt
   scp-cli filestorage volume create \
-    --zone kr-west1-b \
-    --type_name SSD \
+    --zone "$SAT_FILE_ZONE" \
+    --type_name HighPerformanceSSD \
     --protocol NFS \
     --name "$SAT_VOLUME_NAME"
 )
@@ -215,12 +218,12 @@ export PATH="$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune/tools:$PATH
 )
 ```
 
-생성 요청이 타임아웃되면 `scp-cli filestorage volume list --name "$(cat evidence/file-volume-name.txt)"`로 먼저 확인하고, 생성 명령을 무조건 재실행하지 않습니다. `filestorage.BadRequest.Invalid.zone`은 지정한 볼륨 유형에 사용할 수 없는 존이라는 뜻입니다. 이 계정에서 `kr-west1-a`는 `SSD`로도 거부됐습니다. 다른 존을 추측해 생성 요청을 반복하지 말고 콘솔의 File Storage 생성 화면에서 지원 조합을 확인하세요. `--debug true` 출력에는 인증 헤더·토큰이 포함될 수 있으므로 공유하거나 공개 저장소에 남기지 않습니다. 성공 전에는 5-2로 진행하지 않습니다. 최종 준비 완료 상태를 콘솔에서 확인합니다.
+생성 요청이 타임아웃되면 `scp-cli filestorage volume list --name "$(cat evidence/file-volume-name.txt)"`로 먼저 확인하고, 생성 명령을 무조건 재실행하지 않습니다. `400 Bad Request` 또는 `filestorage.BadRequest.Invalid.zone`이 나오면 다른 존을 추측해 반복하지 말고 계정에서 `HighPerformanceSSD`와 SAT 연결을 지원하는 존을 다시 확인하세요. `--debug true` 출력에는 인증 헤더·토큰이 포함될 수 있으므로 공유하거나 공개 저장소에 남기지 않습니다. 성공 전에는 5-2로 진행하지 않습니다. 최종 준비 완료 상태를 콘솔에서 확인합니다.
 
 ### 5-2. SAT에 연결 — 콘솔 1회
 
 1. **Simple AI Training → Volume → Volume 연결**로 이동합니다.
-2. Volume명 `ynat-results`, 위에서 새로 만든 File Storage를 선택합니다.
+2. Volume명 `ynat-results`, 위에서 새로 만든 `HighPerformanceSSD` File Storage를 선택합니다. 대상 목록에 없다면 연결 가능한 유형·존을 확인하고 중단합니다.
 3. 생성된 SAT Volume 이름/ID를 기록합니다. File Storage ID와 SAT Volume ID는 구분합니다.
 4. quota `SAT.FILE_STORAGE.MOUNT.MAX.COUNT`가 1 이상이어야 합니다. 부족하면 Quota Service에서 변경 요청합니다.
 
@@ -469,26 +472,53 @@ findmnt /mnt/sat-results
 
 ### 8-3. 실행 환경 이미지 업로드
 
-Training Job은 File Storage의 코드만으로 실행되지 않으므로 7절에서 빌드한 runtime 이미지도 필요합니다. 아래는 준비 서버 Bash에서 실행합니다.
+Training Job은 File Storage의 코드만으로 실행되지 않으므로 7절에서 빌드한 runtime 이미지를 새 SCR Repository에 업로드해야 합니다. 준비 서버 Bash에서 실행합니다. Docker 로그인 사용자명에는 **이 계정의 SCP Access Key**, 비밀번호에는 **SCP Secret Key**를 입력합니다. Secret Key는 `--password-stdin`으로 전달하고, 키를 화면 출력·문서에 남기지 않습니다. Access Key는 `docker login --username`의 실행 인자에 들어가므로 준비 서버의 프로세스 접근 권한을 제한합니다.
 
 ```bash
 (
   set -euo pipefail
   SAT_PUSH_HOST=$(cat evidence/scr-private-host.txt)
   SAT_REPOSITORY_ENDPOINT=$(cat evidence/scr-private-repository.txt)
-  read -r -s -p 'SCR 사용자명: ' SAT_SCR_USER
+  read -r -s -p 'SCP Access Key (SCR 사용자명): ' SAT_SCR_USER
   printf '\n'
-  read -r -s -p 'SCR 비밀번호: ' SAT_SCR_PASSWORD
+  read -r -s -p 'SCP Secret Key (SCR 비밀번호): ' SAT_SCR_PASSWORD
   printf '\n'
   printf '%s' "$SAT_SCR_PASSWORD" | docker login "$SAT_PUSH_HOST" --username "$SAT_SCR_USER" --password-stdin
   unset SAT_SCR_PASSWORD SAT_SCR_USER
   trap 'docker logout "$SAT_PUSH_HOST" >/dev/null 2>&1 || true' EXIT
-  docker tag sat-ynat-runtime:v1 "$SAT_REPOSITORY_ENDPOINT/trainer:runtime-v1"
-  docker push "$SAT_REPOSITORY_ENDPOINT/trainer:runtime-v1"
+  SAT_IMAGE_REF="$SAT_REPOSITORY_ENDPOINT/trainer:runtime-v1"
+  docker tag sat-ynat-runtime:v1 "$SAT_IMAGE_REF"
+  docker push "$SAT_IMAGE_REF"
+  printf 'Job 이미지 URL: %s\n' "$SAT_IMAGE_REF"
 )
 ```
 
-Job 이미지에는 위 Private Repository endpoint의 이미지와 push 결과의 digest를 사용합니다. 자격증명은 콘솔 이미지 인증 필드에 입력합니다. File Storage는 Job에서 `/results`에 마운트합니다.
+업로드 뒤에는 다음 조회 블록에서 SCR에 이미지와 태그가 등록됐는지 확인합니다. 반영이 늦으면 이 조회 블록만 다시 실행하고 `docker push`를 반복하지 않습니다.
+
+```bash
+(
+  set -euo pipefail
+  SAT_REPOSITORY_ID=$(cat evidence/scr-repository-id.txt)
+  SAT_IMAGE_LIST=$(scp-cli scr repository image list \
+    --repository_id "$SAT_REPOSITORY_ID" \
+    --name trainer --format json)
+  printf '%s\n' "$SAT_IMAGE_LIST"
+  SAT_IMAGE_ID=$(printf '%s' "$SAT_IMAGE_LIST" | python3 -c '
+import json, sys
+result = json.load(sys.stdin)
+images = result.get("images", [])
+matches = [image for image in images if image.get("name") == "trainer" and image.get("state") == "Active"]
+if result.get("count") != 1 or len(matches) != 1 or not matches[0].get("id"):
+    sys.exit("trainer 이미지가 유일한 Active 상태가 아닙니다")
+print(matches[0]["id"])
+')
+  scp-cli scr image tags list \
+    --image_id "$SAT_IMAGE_ID" \
+    --reference_tags runtime-v1 --format json
+)
+```
+
+SCR 이미지 목록은 `trainer`의 ID와 `Active` 상태만 확인합니다. 이어서 태그 조회 응답의 `reference_tags`에 `runtime-v1`이 있고 `hash_digest`가 `docker push` 출력의 SHA-256 digest와 일치하는지 확인하세요. 이미지 목록만으로는 tag·digest를 검증할 수 없습니다. 값이 다르거나 태그 조회가 비어 있으면 Job을 시작하지 않습니다. Job의 이미지 URL은 출력된 `<Private Repository endpoint>/trainer:runtime-v1` 전체 값입니다. 이미지 인증 필드에는 해당 SCR pull 자격증명을 입력하고, File Storage는 `/results`에 마운트합니다.
 
 ## 9. 먼저 smoke Job 실행
 
@@ -505,7 +535,7 @@ Job 이미지에는 위 Private Repository endpoint의 이미지와 push 결과�
 | 메모리 | CPU RAM 16GB 이상 우선 검토, VRAM 24GB급 권장 |
 | Shared Memory | 콘솔 허용 단위/최소값 확인. DataLoader worker=0으로 구성되어 큰 공유 메모리를 전제하지 않음 |
 | Job Failover | 사용 안 함. 첫 검증에서 자동 재시작 방지 |
-| 이미지 URL | 위에서 업로드한 pull 주소와 고정 digest/태그 |
+| 이미지 URL | 8-3절에서 출력한 `<Private Repository endpoint>/trainer:runtime-v1` 전체 값 |
 | 이미지 인증 | 해당 SCR pull 자격증명 |
 | Volume | 앞에서 연결한 `ynat-results`, Mount Path `/results` |
 | Command | 아래 명령 |
