@@ -151,14 +151,22 @@ with os.fdopen(fd, 'w') as f:
 print('PASS: created private CLI configuration; key values not displayed')
 
 PYCONFIG
-scp-cli versions show > evidence/service-versions.txt
-scp-cli filestorage volume list > evidence/volumes-before.txt
-scp-cli scr registry list > evidence/registries-before.txt
+```
+
+기존 설정 파일이 있다면 내용을 개인 화면에서 확인하고 아래 조회 블록만 실행합니다. 조회 중 하나라도 실패하면 5절로 넘어가지 않습니다.
+
+```bash
+(
+  set -euo pipefail
+  scp-cli --version > evidence/scp-cli-version.txt
+  scp-cli filestorage volume list > evidence/volumes-before.txt
+  scp-cli scr registry list > evidence/registries-before.txt
+)
 ```
 
 설정 파일은 `~/.scp/cli-config.json`이며 Enterprise 인증 주소는 `https://iam.e.samsungsdscloud.com/v1/endpoints`입니다. 출력 파일에 키 값은 쓰지 않지만 내부 자원 정보가 포함될 수 있으므로 외부 배포본에는 포함하지 않습니다.
 
-기대: 서비스 버전과 자원 목록이 반환됩니다. `401/403`이면 키 상태·대상 계정·권한·인증키 보안 설정을 먼저 확인하세요. 재발급만 반복하지 않습니다.
+`evidence/scp-cli-version.txt`에는 CLI 버전이 기록됩니다. 두 목록 파일은 조회 출력을 저장하며 자원이 없으면 비어 있을 수 있습니다. 목록 조회가 `401/403`으로 실패하면 키 상태·대상 계정·권한·인증키 보안 설정을 먼저 확인하세요. 재발급만 반복하지 않습니다.
 
 ## 5. File Storage 준비
 
@@ -285,7 +293,7 @@ python3 -m json.tool bundle/manifest.json
 
 ## 8. File Storage에 코드·데이터 업로드
 
-사용자가 요청한 업로드 대상은 **File Storage**입니다. 학습 코드와 모델·데이터는 NFS에 올리고, SCR에는 Python/PyTorch/CUDA 실행 환경 이미지만 올립니다. Docker 빌드 컨텍스트에서 bundle을 제외하며 `Dockerfile`과 `push-training-image.sh`도 실행 환경 이미지만 만들도록 통일했습니다. 아래 본문 명령은 보조 스크립트 없이 직접 실행할 수 있습니다.
+사용자가 요청한 업로드 대상은 **File Storage**입니다. 학습 코드와 모델·데이터는 NFS에 올리고, SCR에는 의존성과 학습 코드가 포함된 실행 이미지를 올립니다. Job은 NFS에 업로드한 릴리스 코드를 실행합니다. Docker 빌드 컨텍스트에서 bundle을 제외하므로 `Dockerfile.runtime`과 `push-training-image.sh`가 만드는 이미지에는 모델·데이터가 없습니다. 아래 본문 명령은 보조 스크립트 없이 직접 실행할 수 있습니다.
 
 ### 8-1. 준비 서버에 File Storage 마운트
 
@@ -355,16 +363,19 @@ findmnt /mnt/sat-results
 Training Job은 File Storage의 코드만으로 실행되지 않으므로 7절에서 빌드한 runtime 이미지도 필요합니다. 아래는 준비 서버 Bash에서 실행합니다.
 
 ```bash
-read -r -p 'SCR push 호스트(https:// 제외): ' SAT_PUSH_HOST
-read -r -s -p 'SCR 사용자명: ' SAT_SCR_USER
-printf '\n'
-read -r -s -p 'SCR 비밀번호: ' SAT_SCR_PASSWORD
-printf '\n'
-printf '%s' "$SAT_SCR_PASSWORD" | docker login "$SAT_PUSH_HOST" --username "$SAT_SCR_USER" --password-stdin
-unset SAT_SCR_PASSWORD SAT_SCR_USER
-docker tag sat-ynat-runtime:v1 "$SAT_PUSH_HOST/ynat-full-ft:runtime-v1"
-docker push "$SAT_PUSH_HOST/ynat-full-ft:runtime-v1"
-docker logout "$SAT_PUSH_HOST"
+(
+  set -euo pipefail
+  read -r -p 'SCR push 호스트(https:// 제외): ' SAT_PUSH_HOST
+  read -r -s -p 'SCR 사용자명: ' SAT_SCR_USER
+  printf '\n'
+  read -r -s -p 'SCR 비밀번호: ' SAT_SCR_PASSWORD
+  printf '\n'
+  printf '%s' "$SAT_SCR_PASSWORD" | docker login "$SAT_PUSH_HOST" --username "$SAT_SCR_USER" --password-stdin
+  unset SAT_SCR_PASSWORD SAT_SCR_USER
+  trap 'docker logout "$SAT_PUSH_HOST" >/dev/null 2>&1 || true' EXIT
+  docker tag sat-ynat-runtime:v1 "$SAT_PUSH_HOST/ynat-full-ft:runtime-v1"
+  docker push "$SAT_PUSH_HOST/ynat-full-ft:runtime-v1"
+)
 ```
 
 Job 이미지에는 SAT에서 접근 가능한 pull 호스트와 위 runtime 이미지의 digest를 사용합니다. 자격증명은 콘솔 이미지 인증 필드에 입력합니다. File Storage는 Job에서 `/results`에 마운트합니다.
@@ -487,7 +498,7 @@ ls -lh "$SAT_RUN_DIR/model"
 | Volume 생성/연결 불가 | File Storage 종류·존·SAT quota | 지원 조합과 quota 확인 |
 | Permission denied | `/results` 소유권·NFS ACL/root squash | 실습 경로 UID/GID 조정 |
 | BF16/CUDA 검사 실패 | 실제 GPU·드라이버·CUDA 호환 | 이미지/GPU 조합 재확인 |
-| CUDA out of memory | 배치·최대 토큰·실제 VRAM | micro batch 1로 수정 후 새 이미지, GPU 수 자동 증가 금지 |
+| CUDA out of memory | 배치·최대 토큰·실제 VRAM | micro batch 1로 수정한 코드를 새 File Storage 릴리스에 업로드하고 Job Command 경로 변경; GPU 수 자동 증가 금지 |
 | TIMEOUT | 초기화/평가/학습/저장 어느 구간인지 | CPU 준비와 표본·평가량 조정 |
 | output already exists | 같은 output을 재사용했는지 | 기존 기록 보존하고 새 실행 ID 사용 |
 | 학습 후 성능 하락 | 라벨 매핑·출력 형식·loss·과적합 | dev 기준으로 조정, 결과를 숨기지 않음 |
