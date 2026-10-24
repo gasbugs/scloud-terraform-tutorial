@@ -10,9 +10,9 @@ git clone https://github.com/gasbugs/scloud-terraform-tutorial.git "$HOME/scloud
 cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 ```
 
-- [기존 SCP VM 구축 가이드](../README.md): 준비 서버가 필요할 때 참고. 생성 시 비용 발생.
-- [Enterprise CLI 설정](../SCLOUD_ENTERPRISE_CLI_GUIDE.md)
-- [SCR 생성·업로드 가이드](../SCLOUD_CONTAINER_REGISTRY_TUTORIAL.md)
+- [기존 SCP VM 구축 가이드](./README.md): 준비 서버가 필요할 때 참고. 생성 시 비용 발생.
+- [Enterprise CLI 설정](./SCLOUD_ENTERPRISE_CLI_GUIDE.md)
+- [SCR 생성·업로드 가이드](./SCLOUD_CONTAINER_REGISTRY_TUTORIAL.md)
 
 작성일: 2026-10-23. 대상: Simple AI Training의 **Training Job**.
 
@@ -518,4 +518,4 @@ docker logout "$SAT_PUSH_HOST"
 - [KLUE 데이터 카드](https://huggingface.co/datasets/klue/klue)
 - [Qwen2.5-0.5B 모델 카드](https://huggingface.co/Qwen/Qwen2.5-0.5B)
 
-KLUE YNAT은 CC BY-SA 4.0으로 상업적 교육·학습 이용이 가능합니다. Qwen 모델 카드는 Apache 2.0입니다. 가공 데이터 출처·변경 내역을 manifest에 기록하지만, 이것만으로 배포 고지가 완성되지는 않습니다. 외부 전달 전 데이터 출처·라이선스 링크·변경 내역과 원본 고지 및 라이선스 사본을 동봉하고, 가공 데이터는 CC BY-SA 4.0으로 제공합니다. 사설 SCR에 보관해도 SDS에 이미지를 전달할 때의 라이선스 검토는 필요합니다. SDS 귀속 교안과 제3자 데이터/모델의 권리를 구분하세요. 구체적인 납품 조건과 고지 예시는 [데이터셋 라이선스 검토](dataset-license-review.md)를 참고하세요.
+KLUE YNAT은 CC BY-SA 4.0으로 상업적 교육·학습 이용이 가능합니다. Qwen 모델 카드는 Apache 2.0입니다. 가공 데이터 출처·변경 내역을 manifest에 기록하지만, 이것만으로 배포 고지가 완성되지는 않습니다. 외부 전달 전 데이터 출처·라이선스 링크·변경 내역과 원본 고지 및 라이선스 사본을 동봉하고, 가공 데이터는 CC BY-SA 4.0으로 제공합니다. 사설 SCR에 보관해도 SDS에 이미지를 전달할 때의 라이선스 검토는 필요합니다. SDS 귀속 교안과 제3자 데이터/모델의 권리를 구분하세요. 구체적인 납품 조건과 고지 예시는 [데이터셋 라이선스 검토](./labs/ynat-full-finetune/DATASET_LICENSE.md)를 참고하세요.

@@ -4,7 +4,7 @@
 
 SCP Container Registry의 생성부터 Docker Hub 이미지 업로드와 전체 정리까지는 [SCP Container Registry 생성·업로드·정리 튜토리얼](./SCLOUD_CONTAINER_REGISTRY_TUTORIAL.md)을 참고합니다.
 
-한국어 뉴스 분류 모델의 학습 전후 비교는 [Simple AI Training 실습](docs/ynat-training-job-guide.md)을 참고합니다. `git clone`부터 시작해 File Storage에 코드·데이터를 업로드하고 Training Job을 실행합니다. File Storage 생성의 `Bad Request`는 현재 미해결이며 가이드에 표시되어 있습니다.
+한국어 뉴스 분류 모델의 학습 전후 비교는 [Simple AI Training 실습](./SCLOUD_SIMPLE_AI_TRAINING_TUTORIAL.md)을 참고합니다. `git clone`부터 시작해 File Storage에 코드·데이터를 업로드하고 Training Job을 실행합니다. File Storage 생성의 `Bad Request`는 현재 미해결이며 가이드에 표시되어 있습니다.
 
 ## 프로젝트가 만드는 리소스
 
