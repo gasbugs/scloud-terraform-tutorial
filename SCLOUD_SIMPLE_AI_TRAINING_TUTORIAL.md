@@ -3,7 +3,7 @@
 
 ## 시작: 저장소 받기
 
-Docker를 실행할 Linux x86_64 준비 서버의 Bash 터미널에서 시작합니다. 같은 경로에 기존 저장소가 있다면 clone을 반복하지 말고 기존 작업 내용을 확인한 뒤 업데이트하세요.
+Docker를 실행할 kr-west1의 기존 SCP 내부 Linux x86_64 준비 서버의 Bash 터미널에서 시작합니다. 같은 경로에 기존 저장소가 있다면 clone을 반복하지 말고 기존 작업 내용을 확인한 뒤 업데이트하세요.
 
 ```bash
 git clone https://github.com/gasbugs/scloud-terraform-tutorial.git "$HOME/scloud-terraform-tutorial"
@@ -16,7 +16,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 작성일: 2026-10-23. 대상: Simple AI Training의 **Training Job**.
 
-> 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 교육 계정에서 File Storage `SSD`/`kr-west1-b` 생성과 조회를 확인했습니다. Docker 이미지 빌드, 데이터 다운로드, CUDA 학습과 SAT 연결은 실행하지 않았습니다. 아래 `PASS`는 사용자가 실제 실행 후 확인할 기준이지 이미 얻은 실측 결과가 아닙니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
+> 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 교육 계정에서 File Storage `SSD`/`kr-west1-b` 테스트 생성·조회 후 삭제를 확인했습니다. SCR 생성 명령은 로컬 `--dry-run true` 파싱만 검증했고 실제 Registry/Repository는 만들지 않았습니다. Docker 이미지 빌드, 데이터 다운로드, CUDA 학습과 SAT 연결은 실행하지 않았습니다. 아래 `PASS`는 사용자가 실제 실행 후 확인할 기준이지 이미 얻은 실측 결과가 아닙니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
 
 > 실행 이슈: 사용자가 5-1의 File Storage 생성 명령에서 `Bad Request`를 보고했습니다. 오류 코드는 `filestorage.BadRequest.Invalid.zone`이며, 이전 예시의 `kr-west1-a`는 `SSD`로도 거부됐습니다. `SSD`/`kr-west1-b`는 이 교육 계정에서 생성과 조회에 성공했습니다. 다른 계정은 콘솔에서 지원 조합을 확인해야 합니다.
 
@@ -38,14 +38,14 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 ## 2. 구축 방식 결정
 
-**이번 규모는 Terraform 없이 `scp-cli` + Docker + 콘솔로 진행합니다.** 기존 개발용 Linux 머신을 재사용하고, 새 VPC·GPU VM·Kubernetes·약정 Workspace를 만들지 않습니다.
+**이번 규모는 Terraform 없이 `scp-cli` + Docker + 콘솔로 진행합니다.** kr-west1의 기존 SCP 내부 Linux 서버를 재사용하고, 새 VPC·GPU VM·Kubernetes·약정 Workspace를 만들지 않습니다.
 
 | 필요한 것 | 준비 방법 | 확인·대응 |
 |---|---|---|
-| Linux x86_64 준비 머신 | 기존 PC/개발 서버 사용. GPU 불필요 | Docker를 사용할 수 있는 기존 Linux 환경 확보 |
+| Linux x86_64 준비 머신 | kr-west1의 기존 SCP 내부 서버 사용. GPU 불필요 | Docker·Private SCR·File Storage NFS·외부 다운로드 경로 확인 |
 | SCP 인증키·권한 | 발급받은 교육 계정 사용 | 담당자에게 File Storage/SCR/SAT/ServiceWatch 권한 요청 |
 | File Storage | 실습 전용 NFS SSD 볼륨 1개 새로 생성 | SAT 연결 가능한 존·quota 확인 |
-| SCR | 기존 레지스트리 우선 사용 | 없으면 콘솔에서 생성 후 접근 대상 설정 |
+| SCR | 실습 전용 Registry와 Repository를 CLI로 새로 생성 | 생성 상태·push/pull 접근 확인 |
 | SAT Volume 연결 | 콘솔에서 File Storage 연결 | quota 확인 후 1회 연결 |
 | Training Job | 콘솔에서 1GPU Job 실행 | smoke 통과 후 full 실행 |
 
@@ -57,7 +57,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 - 1노드·1GPU 지원 여부, GPU 종류와 VRAM(24GB급 권장), BF16 지원 여부.
 - GPU 상품 단가·최소 청구 단위·Job 종료 후 자원 해제 기준.
 - 새 File Storage의 존·이름과 SAT 연결 가능 여부. 생성 후 ID와 NFS 마운트 주소를 기록합니다.
-- SCR ID, 이미지 push/pull 엔드포인트, 준비 머신과 SAT의 접근 경로.
+- 새 SCR Registry/Repository 이름·ID, 이미지 push/pull 엔드포인트, 준비 머신과 SAT의 접근 경로.
 
 **실제 상품이 최소 4GPU라면 1GPU 가격으로 계산하지 마세요.** 지원 SKU가 계획과 다르면 자원 생성 전에 예산을 재산정합니다.
 
@@ -70,20 +70,20 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 | 저장소 받기 | Linux 준비 서버의 Bash | 문서 첫 `git clone` 블록 실행 |
 | 4~8절 | Linux 준비 서버의 Bash | `~/scloud-terraform-tutorial/labs/ynat-full-finetune`에서 진행 |
 | 5절 | 같은 준비 서버 + SCP 콘솔 | 5-1에서 새 File Storage를 생성한 뒤 5-2에서 SAT에 연결 |
-| 6절 | 같은 준비 서버 + SCP 콘솔 | 기존 SCR이면 6-1, 없으면 6-2 선택 |
+| 6절 | 같은 준비 서버의 Bash | 새 Registry와 Repository를 CLI로 생성·조회 |
 | 9·11절 | SCP 콘솔의 Job Command 입력란 | 서버 터미널에서 실행하는 명령이 아님 |
 | 10·12절 | NFS 접근 가능한 내부 Linux 서버 | 준비 서버와 다를 수 있음. 변수·마운트를 별도로 설정 |
 | 14절 logout | Linux 준비 서버 | 이미지 push를 수행한 서버로 돌아와 실행 |
 
 복사할 명령 안의 한글 예시 값은 실제 값으로 교체해야 합니다. 각 블록이 실패하면 다음 블록으로 넘어가지 마세요.
 
-이 가이드는 Linux x86_64 + Bash + 동작하는 Docker Engine을 기준으로 합니다. macOS에서는 공식 CLI의 Linux 바이너리를 직접 실행하지 마세요. Apple Silicon에서 아래 x86_64 CUDA 이미지의 에뮬레이션 빌드는 별도 검증 대상입니다. 가장 단순한 경로는 기존 Linux 준비 머신을 사용하는 것입니다.
+이 가이드는 Linux x86_64 + Bash + 동작하는 Docker Engine을 기준으로 합니다. macOS에서는 공식 CLI의 Linux 바이너리를 직접 실행하지 마세요. Apple Silicon에서 아래 x86_64 CUDA 이미지의 에뮬레이션 빌드는 별도 검증 대상입니다. 이 실습은 같은 리전의 기존 SCP 내부 Linux 준비 서버를 사용합니다.
 
 준비 머신에는 CPU 모델 로딩을 위한 RAM 16GB 이상과 이미지/모델/결과를 위한 여유 디스크 40GB 정도를 권장합니다. 보장 최소 사양은 아닙니다.
 
 준비 서버의 Bash에서 이 문서 맨 위의 `git clone` 명령으로 저장소를 받습니다. 이미 받았다면 아래 작업 디렉터리로 이동하면 됩니다. 개인 컴퓨터의 절대 경로나 SSH 파일 복사 명령은 필요하지 않습니다.
 
-이후 4~8절은 준비 서버의 같은 Bash 세션에서 실행합니다. 6절의 SCR 재사용/생성 경로 중 하나만 선택합니다. 새로 접속했다면 아래 작업 디렉터리와 4절의 PATH를 다시 설정하세요.
+이후 4~8절은 준비 서버의 같은 Bash 세션에서 실행합니다. 6절에서 새 SCR을 생성하고 조회합니다. 새로 접속했다면 아래 작업 디렉터리와 4절의 PATH를 다시 설정하세요.
 
 ```bash
 cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
@@ -226,37 +226,144 @@ export PATH="$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune/tools:$PATH
 
 Training Job에서 이 Volume을 `/results`에 마운트합니다. 컨테이너 사용자가 해당 경로에 쓸 수 있어야 합니다. NFS root squash/소유권 문제는 실습 전용 디렉터리의 UID/GID와 접근 규칙으로 해결하고 공유 볼륨 전체를 `chmod 777`로 바꾸지 않습니다.
 
-## 6. SCR 준비
+## 6. 새 SCR Registry와 Repository 생성 — CLI
 
-### 6-1. 경로 A — 기존 SCR 사용 (6-2 생성 생략)
+`kr-west1`의 기존 SCP 내부 Linux 준비 서버에서 실행합니다. 이 서버는 8절에서 같은 리전의 File Storage도 NFS로 마운트합니다. 실습 전용 Registry와 Repository를 새로 만들며 저장량에 따라 비용이 발생합니다.
+
+### 6-1. Registry 생성
+
+이름은 소문자·숫자만 쓰는 3~25자입니다. UTC 시각으로 새 이름을 만들고, 생성 요청 전에 `evidence/`에 기록합니다. 아래 설정은 **Private endpoint만** 사용하고 Public endpoint·익명 공개를 끕니다. Private ACL을 끄면 같은 리전의 SCP 내부 자원에서 접근할 수 있으므로, Docker 로그인·이미지 권한을 별도로 확인해야 합니다.
 
 ```bash
-scp-cli scr registry list
-export SAT_REGISTRY_ID='실제-레지스트리-ID'
-scp-cli scr registry show --registry_id "$SAT_REGISTRY_ID"
+(
+  set -euo pipefail
+  cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
+  SAT_REGISTRY_NAME="satynat$(date -u +%y%m%d%H%M%S)"
+  printf '%s\n' "$SAT_REGISTRY_NAME" > evidence/scr-registry-name.txt
+
+  SAT_DUPLICATION=$(scp-cli scr registry name-duplication show \
+    --name "$SAT_REGISTRY_NAME" --format json)
+  printf '%s' "$SAT_DUPLICATION" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("result") is False else "Registry 이름 중복 또는 응답 확인 실패")'
+
+  SAT_CREATE_OUTPUT=$(scp-cli scr registry create \
+    --name "$SAT_REGISTRY_NAME" \
+    --private_acl_enabled=false \
+    --private_acl_resources='[]' \
+    --public_acl_enabled=false \
+    --public_acl_resources='[]' \
+    --public_endpoint_enabled=false \
+    --public_visible_enabled=false \
+    --format json)
+  SAT_REGISTRY_ID=$(printf '%s' "$SAT_CREATE_OUTPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id") or "")')
+  [[ -n "$SAT_REGISTRY_ID" ]] || { echo 'Registry ID를 얻지 못했습니다.' >&2; exit 1; }
+  printf '%s\n' "$SAT_REGISTRY_ID" > evidence/scr-registry-id.txt
+  printf '새 Registry: %s (%s)\n' "$SAT_REGISTRY_NAME" "$SAT_REGISTRY_ID"
+)
 ```
 
-콘솔의 **Container Registry 상세 → 이미지 사용 명령**에서 실제 호스트와 인증 방식을 확인합니다. DNS 이름은 만들어 추측하지 마세요. push용 Public endpoint와 SAT pull용 Private endpoint가 다를 수 있습니다.
+생성 직후 `Creating`이면 아래 조회를 반복합니다. `registry.state`가 `Running`이고 `private_domain`이 표시돼야 합니다. 이 도메인에는 Repository의 실제 접속 포트와 경로가 없으므로 Docker 주소로 사용하지 않습니다. Public endpoint와 공개 가시성이 꺼져 있는지도 출력에서 확인합니다.
 
-### 6-2. 경로 B — 새 SCR이 필요할 때만 콘솔에서 생성
+```bash
+(
+  set -euo pipefail
+  cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
+  SAT_REGISTRY_ID=$(cat evidence/scr-registry-id.txt)
+  SAT_REGISTRY_NAME=$(cat evidence/scr-registry-name.txt)
+  SAT_REGISTRY_SHOW=$(scp-cli scr registry show \
+    --registry_id "$SAT_REGISTRY_ID" --format json)
+  printf '%s' "$SAT_REGISTRY_SHOW" | python3 -c '
+import json, sys
+registry = json.load(sys.stdin).get("registry", {})
+print("state:", registry.get("state"), "private_domain:", registry.get("private_domain"),
+      "public_endpoint_enabled:", registry.get("public_endpoint_enabled"),
+      "public_visible_enabled:", registry.get("public_visible_enabled"))
+if registry.get("state") != "Running" or not registry.get("private_domain"):
+    sys.exit("Registry 준비 미완료")
+'
+  scp-cli scr registry list --name "$SAT_REGISTRY_NAME" --format json
+)
+```
 
-SCR 생성은 콘솔에서 진행합니다. 이전 문서의 `--public_acl_resources '[]'` 등 빈 배열 옵션은 실제 CLI 파싱을 확인하지 못했으므로 실행 명령에서 제거했습니다.
+`create`가 타임아웃되면 저장된 이름으로 `scp-cli scr registry list --name "$(cat evidence/scr-registry-name.txt)" --format json`을 먼저 조회합니다. 생성 여부를 확인하기 전에는 다시 생성하지 않습니다. `Running`을 확인하지 못하면 다음 단계로 진행하지 않습니다.
 
-1. Container Registry 생성 화면에서 이름 `sat-ynat-demo`를 입력합니다.
-2. 공개 가시성은 끄고, 준비 서버와 SAT가 사용할 접근 경로에 맞게 endpoint 및 접근 대상을 설정합니다.
-3. 생성한 레지스트리의 실제 push/pull 주소를 기록합니다.
+### 6-2. Repository 생성과 Private endpoint 확인
 
-### 6-3. 두 경로 공통 — 접근 및 인증 설정
+새 Registry 안에 `ynat-full-ft` Repository를 만듭니다. CLI v2.1은 비활성화한 스캔·보존 정책의 세부 값도 필수로 받으므로 아래 값을 함께 전달합니다. 이 정책 선택은 실습용입니다.
 
-기존 레지스트리도 다음 항목을 확인합니다. 콘솔에서:
+```bash
+(
+  set -euo pipefail
+  cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
+  SAT_REGISTRY_ID=$(cat evidence/scr-registry-id.txt)
+  SAT_REPOSITORY_NAME=ynat-full-ft
+  printf '%s\n' "$SAT_REPOSITORY_NAME" > evidence/scr-repository-name.txt
 
-- 준비 머신이 내부망이면 Private 접근 허용 대상으로 추가합니다.
-- 외부 준비 머신이면 필요한 경우 Public endpoint를 켜되 실제 출발지 IP만 허용하고, 공개 가시성은 끈 상태로 유지합니다.
-- SAT 학습 자원이 이미지를 가져올 경로도 SDS 권장 방식으로 허용합니다. SAT가 SCR 접근 대상 목록에 직접 나오지 않으면 담당자에게 서비스 연계 방식을 확인합니다.
-- 본인 계정의 이미지 push 권한 및 Job의 pull 인증을 설정합니다.
-- Repository `ynat-full-ft`를 생성합니다. 접근 정책을 이유 없이 전면 허용하지 않습니다.
+  SAT_DUPLICATION=$(scp-cli scr repository name-duplication show \
+    --registry_id "$SAT_REGISTRY_ID" \
+    --name "$SAT_REPOSITORY_NAME" --format json)
+  printf '%s' "$SAT_DUPLICATION" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("result") is False else "Repository 이름 중복 또는 응답 확인 실패")'
 
-인증키의 SCR 사용 보안 설정은 계정의 콘솔 안내에 따라 완료해야 합니다. 현재 문서만으로 특정 보안 스위치 이름을 단정하지 않습니다.
+  SAT_CREATE_OUTPUT=$(scp-cli scr repository create \
+    --registry_id "$SAT_REGISTRY_ID" \
+    --name "$SAT_REPOSITORY_NAME" \
+    --description "SAT YNAT training image" \
+    --severity_limit High \
+    --secret_excepted false \
+    --scan_policy_enabled false \
+    --language_excepted false \
+    --fixed_version_excepted false \
+    --auto_scan_enabled false \
+    --vulnerable_image_pull_prevented false \
+    --unscanned_image_pull_prevented false \
+    --unmodified_excepted false \
+    --locked false \
+    --untagged_rule_enabled false \
+    --untagged_rule_duration 90 \
+    --outdated_rule_tag_expression '*' \
+    --outdated_rule_enabled false \
+    --outdated_rule_duration 90 \
+    --lifecycle_policy_enabled false \
+    --format json)
+  SAT_REPOSITORY_ID=$(printf '%s' "$SAT_CREATE_OUTPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id") or "")')
+  [[ -n "$SAT_REPOSITORY_ID" ]] || { echo 'Repository ID를 얻지 못했습니다.' >&2; exit 1; }
+  printf '%s\n' "$SAT_REPOSITORY_ID" > evidence/scr-repository-id.txt
+  printf '새 Repository: %s (%s)\n' "$SAT_REPOSITORY_NAME" "$SAT_REPOSITORY_ID"
+)
+```
+
+다음 조회의 `repository.state`가 `Active`일 때까지 기다립니다. `repository.private_endpoint_url`의 실제 값은 `호스트:포트/Repository`를 포함합니다. 출력에서 확인한 값을 파싱해 Docker 로그인 호스트와 이미지 경로를 각각 기록합니다. 필드가 없거나 Repository 이름이 다르면 진행하지 않습니다.
+
+```bash
+(
+  set -euo pipefail
+  cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
+  SAT_REPOSITORY_ID=$(cat evidence/scr-repository-id.txt)
+  SAT_REPO_SHOW=$(scp-cli scr repository show \
+    --repository_id "$SAT_REPOSITORY_ID" --format json)
+  printf '%s' "$SAT_REPO_SHOW" | python3 -c '
+import json, sys
+from pathlib import Path
+from urllib.parse import urlsplit
+repo = json.load(sys.stdin).get("repository", {})
+if repo.get("name") != "ynat-full-ft" or repo.get("state") != "Active":
+    sys.exit("Repository 이름 또는 상태 확인 실패")
+raw = repo.get("private_endpoint_url")
+if not isinstance(raw, str) or not raw:
+    sys.exit("Private Repository endpoint 없음")
+url = urlsplit(raw if "://" in raw else "https://" + raw)
+path = url.path.rstrip("/")
+if url.scheme != "https" or not url.netloc or not path.endswith("/ynat-full-ft") or url.query or url.fragment or url.username or url.password or url.port is None:
+    sys.exit("Private Repository endpoint 형식 확인 실패")
+Path("evidence/scr-private-host.txt").write_text(url.netloc + "\n")
+Path("evidence/scr-private-repository.txt").write_text(url.netloc + path + "\n")
+print("Private Repository endpoint:", url.netloc + path)
+'
+  SAT_PUSH_HOST=$(cat evidence/scr-private-host.txt)
+  getent hosts "${SAT_PUSH_HOST%%:*}"
+)
+```
+
+생성 요청이 타임아웃되면 `scp-cli scr registry repository list --registry_id "$(cat evidence/scr-registry-id.txt)" --name ynat-full-ft --format json`으로 먼저 조회하고, 중복 생성하지 않습니다. 준비 서버와 SAT Job 모두 위 Private endpoint로 이미지를 가져올 수 있어야 합니다. 계정의 SCR 로그인·push 권한과 Job의 pull 인증을 확인하세요. 연결이 안 되면 GPU Job을 시작하지 않습니다.
 
 ## 7. GPU 없이 이미지와 데이터 준비
 
@@ -367,7 +474,8 @@ Training Job은 File Storage의 코드만으로 실행되지 않으므로 7절�
 ```bash
 (
   set -euo pipefail
-  read -r -p 'SCR push 호스트(https:// 제외): ' SAT_PUSH_HOST
+  SAT_PUSH_HOST=$(cat evidence/scr-private-host.txt)
+  SAT_REPOSITORY_ENDPOINT=$(cat evidence/scr-private-repository.txt)
   read -r -s -p 'SCR 사용자명: ' SAT_SCR_USER
   printf '\n'
   read -r -s -p 'SCR 비밀번호: ' SAT_SCR_PASSWORD
@@ -375,12 +483,12 @@ Training Job은 File Storage의 코드만으로 실행되지 않으므로 7절�
   printf '%s' "$SAT_SCR_PASSWORD" | docker login "$SAT_PUSH_HOST" --username "$SAT_SCR_USER" --password-stdin
   unset SAT_SCR_PASSWORD SAT_SCR_USER
   trap 'docker logout "$SAT_PUSH_HOST" >/dev/null 2>&1 || true' EXIT
-  docker tag sat-ynat-runtime:v1 "$SAT_PUSH_HOST/ynat-full-ft:runtime-v1"
-  docker push "$SAT_PUSH_HOST/ynat-full-ft:runtime-v1"
+  docker tag sat-ynat-runtime:v1 "$SAT_REPOSITORY_ENDPOINT/trainer:runtime-v1"
+  docker push "$SAT_REPOSITORY_ENDPOINT/trainer:runtime-v1"
 )
 ```
 
-Job 이미지에는 SAT에서 접근 가능한 pull 호스트와 위 runtime 이미지의 digest를 사용합니다. 자격증명은 콘솔 이미지 인증 필드에 입력합니다. File Storage는 Job에서 `/results`에 마운트합니다.
+Job 이미지에는 위 Private Repository endpoint의 이미지와 push 결과의 digest를 사용합니다. 자격증명은 콘솔 이미지 인증 필드에 입력합니다. File Storage는 Job에서 `/results`에 마운트합니다.
 
 ## 9. 먼저 smoke Job 실행
 
@@ -510,13 +618,49 @@ ls -lh "$SAT_RUN_DIR/model"
 1. Job `Completed/Failed`만 보고 끝내지 말고 GPU 할당이 해제됐는지 확인합니다.
 2. `TIMEOUT` 또는 로그가 멈춘 상태면 콘솔의 Job 삭제/해지 절차로 남은 작업을 정리하고 실제 해제까지 확인합니다.
 3. 출력은 삭제 전에 별도 보관합니다. 학습 스크립트 timeout은 클라우드 과금 차단을 보장하지 않습니다.
-4. 이번에 새로 만든 File Storage와 SAT Volume은 필요한 결과를 보관하고 사용 주체를 확인한 뒤 정리합니다. 기존 SCR은 삭제하지 않습니다.
+4. 필요한 결과를 보관하고 사용 주체를 확인한 뒤, 이번 실습에서 새로 만든 File Storage·SAT Volume·SCR Repository·Registry를 정리합니다.
 5. 학습 과정에서 만들지 않은 약정 Workspace·공유 볼륨은 건드리지 않습니다.
-6. **이미지를 push했던 준비 서버로 돌아와** 아래를 수행합니다. 새 세션에서도 실행할 수 있도록 호스트를 다시 입력합니다.
+6. **이미지를 push했던 준비 서버로 돌아와** 기록된 Private endpoint 호스트로 Docker 로그아웃을 합니다.
 
 ```bash
-read -r -p '로그아웃할 SCR push 호스트: ' SAT_PUSH_HOST
+cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
+SAT_PUSH_HOST=$(cat evidence/scr-private-host.txt)
 docker logout "$SAT_PUSH_HOST"
+```
+
+새로 만든 SCR를 삭제하기 전에 Job이 끝났고 필요한 이미지와 결과를 보관했는지 확인합니다. 다음 조회에서 이름·ID가 `evidence/`에 기록한 **이번 실습 자원**과 일치하고, Repository 이미지 목록에 남겨둘 이미지가 없는지 확인하세요.
+
+```bash
+(
+  set -euo pipefail
+  cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
+  scp-cli scr repository show \
+    --repository_id "$(cat evidence/scr-repository-id.txt)" --format json
+  scp-cli scr repository image list \
+    --repository_id "$(cat evidence/scr-repository-id.txt)" --format json
+  scp-cli scr registry show \
+    --registry_id "$(cat evidence/scr-registry-id.txt)" --format json
+)
+```
+
+확인한 실습용 Repository를 먼저 삭제합니다. 이어서 Registry 안의 Repository 목록 `count`가 `0`이 될 때까지 조회합니다.
+
+```bash
+cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
+scp-cli scr repository delete \
+  --repository_id "$(cat evidence/scr-repository-id.txt)" --format json
+scp-cli scr registry repository list \
+  --registry_id "$(cat evidence/scr-registry-id.txt)" --format json
+```
+
+`count: 0`을 확인한 뒤 이번에 만든 Registry만 삭제하고, 이름으로 조회한 목록도 비었는지 확인합니다.
+
+```bash
+cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
+scp-cli scr registry delete \
+  --registry_id "$(cat evidence/scr-registry-id.txt)" --format json
+scp-cli scr registry list \
+  --name "$(cat evidence/scr-registry-name.txt)" --format json
 ```
 
 전체 실행 할당 누적 90분을 잠정 예산으로 잡되, SKU 단가·이미지 pull·초기화·최소 청구 단위·스토리지 및 로그 비용을 합산합니다. 여기서는 원화 비용을 추측해 기입하지 않았습니다.

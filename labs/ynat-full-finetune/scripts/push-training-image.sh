@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# Usage: bash scripts/push-training-image.sh PUSH_HOST TAG
+# Usage: bash scripts/push-training-image.sh REPOSITORY_ENDPOINT TAG
 set -euo pipefail
 if [[ $# != 2 || -z "$1" || -z "$2" ]]; then
-  echo 'Usage: bash scripts/push-training-image.sh PUSH_HOST TAG' >&2
+  echo 'Usage: bash scripts/push-training-image.sh REPOSITORY_ENDPOINT TAG' >&2
   exit 2
 fi
-SAT_PUSH_HOST="$1"
+SAT_REPOSITORY_ENDPOINT="$1"
+SAT_PUSH_HOST="${SAT_REPOSITORY_ENDPOINT%%/*}"
 SAT_IMAGE_TAG="$2"
-[[ "$SAT_PUSH_HOST" != *://* && "$SAT_PUSH_HOST" != */* ]] || { echo 'Use hostname[:port], without https:// or path.' >&2; exit 2; }
+[[ -n "$SAT_PUSH_HOST" && "$SAT_REPOSITORY_ENDPOINT" != *://* && "$SAT_REPOSITORY_ENDPOINT" == */ynat-full-ft ]] || { echo 'Use the exact private Repository endpoint (host:port/ynat-full-ft), without https://.' >&2; exit 2; }
 [[ "$SAT_IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || { echo 'Invalid Docker tag.' >&2; exit 2; }
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$LAB_DIR"
 docker info >/dev/null
 # Build only the execution environment; data is uploaded through NFS.
-SAT_IMAGE_REF="$SAT_PUSH_HOST/ynat-full-ft:$SAT_IMAGE_TAG"
+SAT_IMAGE_REF="$SAT_REPOSITORY_ENDPOINT/trainer:$SAT_IMAGE_TAG"
 docker build --platform linux/amd64 -f Dockerfile.runtime -t "$SAT_IMAGE_REF" .
 docker run --rm --network none "$SAT_IMAGE_REF" python -c 'import torch, transformers, datasets; print(torch.__version__, transformers.__version__, datasets.__version__)'
 read -r -s -p 'SCR username: ' SAT_SCR_USER
