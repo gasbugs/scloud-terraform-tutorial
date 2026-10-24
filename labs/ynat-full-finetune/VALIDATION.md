@@ -35,3 +35,11 @@
 - `pip check`는 베이스 이미지의 별도 `ninja 1.11.1.1 is not supported on this platform`를 보고해 빌드 게이트로 쓰지 않았다. 해당 검사만으로 PyArrow ABI 충돌도 잡지 못했다.
 - 실제 `prepare.py --out /bundle` 실행으로 Qwen/Qwen2.5-0.5B와 KLUE YNAT 다운로드 및 오프라인 번들 생성 완료: `PASS: prepared offline bundle; no GPU used`. `manifest.json`의 train 1,400/dev 350/test 700행과 각 JSONL SHA-256을 확인했다.
 - SCR push, SAT Job, CUDA 학습은 이번 검증에서 실행하지 않았다.
+
+2026-10-24 SAT 자격·존 사전 점검:
+
+- 빈 `SAT_FILE_ZONE` 입력은 기존 가이드의 의도된 중단이며 File Storage 생성 API 요청은 전송되지 않았다.
+- 계정의 `scp-cli filestorage volume list --format json` 결과는 0개. `scp-cli quota account-quota list --size 1000 --format json`에서 `SAT.FILE_STORAGE.MOUNT.MAX.COUNT`, `SAT.H100_GPU.MAX.COUNT`, `SAT.B300_GPU.MAX.COUNT`의 `applied_value`가 모두 0이고, SAT quota 요청 목록도 0개였다.
+- 공식 SAT How-to는 고성능 SSD File Storage와 SAT mount quota 1 이상을 요구한다. 공식 문서에서 `HighPerformanceSSD`의 계정별 지원 존은 확인되지 않았고, 설치된 `scp-cli` v2.1.0에는 SAT 연결/Job 생성 또는 quota 증액 요청 명령이 없다.
+- 가이드의 새 Bash quota 사전 검사 블록은 현재 계정에서 세 값 0을 출력하고 exit 1로 생성 전에 중단했다. 최종 가이드 Bash 블록 25개 `bash -n` 통과.
+- `scripts/create-file-storage.sh`는 명시적 존·`HighPerformanceSSD`·NFS와 SAT mount/GPU quota를 요구한다. 모의 CLI 검사에서 존 누락, mount quota 0, GPU quota 0은 생성 호출 없이 종료했고, 모든 quota 1일 때 단일 생성 및 조회만 호출했다. 실제 File Storage 생성은 실행하지 않았다.

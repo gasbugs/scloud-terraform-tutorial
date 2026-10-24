@@ -20,6 +20,8 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 > 실행 이슈: `HighPerformanceSSD`/`kr-west1-a` 생성 요청은 `400 Bad Request`였고, `SSD`/`kr-west1-a`는 `filestorage.BadRequest.Invalid.zone`으로 거부됐습니다. `SSD`/`kr-west1-b`는 테스트 생성·조회 후 삭제했지만 SAT 호환성은 확인되지 않았습니다. 5절의 `HighPerformanceSSD` 지원 존을 계정에서 확인하기 전에는 생성 요청을 보내지 않습니다.
 
+> 계정 사전 점검(2026-10-24): `scp-cli` 조회에서 `SAT.FILE_STORAGE.MOUNT.MAX.COUNT`, `SAT.H100_GPU.MAX.COUNT`, `SAT.B300_GPU.MAX.COUNT`의 적용값이 모두 0이었고 SAT quota 증설 요청도 없었습니다. 할당량과 `HighPerformanceSSD` 지원 존이 확인되기 전에는 유료 File Storage 생성을 시도하지 않습니다.
+
 ## 1. 무엇을 만드는가
 
 한 Job 안에서 다음을 수행합니다.
@@ -38,7 +40,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 ## 2. 구축 방식 결정
 
-**이번 규모는 Terraform 없이 `scp-cli` + Docker + 콘솔로 진행합니다.** kr-west1의 기존 SCP 내부 Linux 서버를 재사용하고, 새 VPC·GPU VM·Kubernetes·약정 Workspace를 만들지 않습니다.
+**이번 규모는 Terraform 없이 `scp-cli` + Docker로 로컬 준비를 진행합니다.** kr-west1의 기존 SCP 내부 Linux 서버를 재사용하고, 새 VPC·GPU VM·Kubernetes·약정 Workspace를 만들지 않습니다. 현재 계정의 SAT 할당량이 0이고 공개 SAT CLI가 없어, CLI만으로는 Volume 연결과 Job 실행까지 진행할 수 없습니다.
 
 | 필요한 것 | 준비 방법 | 확인·대응 |
 |---|---|---|
@@ -46,10 +48,10 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 | SCP 인증키·권한 | 발급받은 교육 계정 사용 | 담당자에게 File Storage/SCR/SAT/ServiceWatch 권한 요청 |
 | File Storage | 실습 전용 NFS 고성능 SSD(`HighPerformanceSSD`) 볼륨 1개 새로 생성 | 계정에서 SAT 호환 존·quota 확인 전에는 생성 중단 |
 | SCR | 실습 전용 Registry와 Repository를 CLI로 새로 생성 | 생성 상태·push/pull 접근 확인 |
-| SAT Volume 연결 | 콘솔에서 File Storage 연결 | quota 확인 후 1회 연결 |
-| Training Job | 콘솔에서 1GPU Job 실행 | smoke 통과 후 full 실행 |
+| SAT Volume 연결 | 현재 `scp-cli` 미지원 | SAT File Storage quota 1 이상과 지원 인터페이스 확보 전 보류 |
+| Training Job | 현재 `scp-cli` 미지원 | GPU quota와 지원 인터페이스 확보 전 보류 |
 
-공개 CLI의 AI-ML 목록에는 AI&MLOps Platform과 Cloud ML만 확인됐습니다. `scp-cli sat job create` 같은 미확인 명령을 만들지 않습니다. SAT Volume 연결/Job 생성은 공식 How-to의 콘솔 절차를 사용합니다. 향후 네트워크·개발 서버까지 반복 구축해야 하면 그때 Terraform으로 확장합니다.
+[공식 AI-ML CLI 목록](https://docs.e.samsungsdscloud.com/clireference/ai-ml/)에는 AI&MLOps Platform과 Cloud ML만 있고, 설치된 `scp-cli` v2.1.0에도 SAT 명령이 없습니다. 공식 How-to는 웹 콘솔 경로만 설명합니다. CLI만 사용하는 조건을 유지하므로 SAT Volume 연결과 Job 생성은 지원 명령이 제공될 때까지 보류합니다. `scp-cli sat job create` 같은 미확인 명령을 만들지 않습니다.
 
 ### 실행 전 확인하고 진행 중 기록할 값
 
@@ -68,10 +70,10 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 | 단계 | 실행 위치 | 실행 규칙 |
 |---|---|---|
 | 저장소 받기 | Linux 준비 서버의 Bash | 문서 첫 `git clone` 블록 실행 |
-| 4~8절 | Linux 준비 서버의 Bash | `~/scloud-terraform-tutorial/labs/ynat-full-finetune`에서 진행 |
-| 5절 | 같은 준비 서버 + SCP 콘솔 | 5-1에서 새 File Storage를 생성한 뒤 5-2에서 SAT에 연결 |
+| 4~8절 | Linux 준비 서버의 Bash | 5-2의 CLI 지원이 막혀 있어 6·8절의 새 유료 자원 작업은 보류; 7절 로컬 준비는 독립 실행 가능 |
+| 5절 | Linux 준비 서버의 Bash | quota와 존 확인 후 File Storage 생성 가능; SAT 연결은 CLI 미지원으로 보류 |
 | 6절 | 같은 준비 서버의 Bash | 새 Registry와 Repository를 CLI로 생성·조회 |
-| 9·11절 | SCP 콘솔의 Job Command 입력란 | 서버 터미널에서 실행하는 명령이 아님 |
+| 9·11절 | SAT 실행 인터페이스 확보 후 | 표의 Job Command는 서버 터미널에서 실행하는 명령이 아님 |
 | 10·12절 | NFS 접근 가능한 내부 Linux 서버 | 준비 서버와 다를 수 있음. 변수·마운트를 별도로 설정 |
 | 14절 logout | Linux 준비 서버 | 이미지 push를 수행한 서버로 돌아와 실행 |
 
@@ -176,6 +178,33 @@ PYCONFIG
 
 `kr-west1`은 CLI 설정의 **리전**이고 생성 명령의 **존**은 별도 값입니다. [SAT Training Job/Volume How-to](https://docs.e.samsungsdscloud.com/userguide/ai_ml/simple_ai_training/how_to_guides/)의 Volume 연결 대상은 고성능 SSD(`HighPerformanceSSD`)입니다. `SSD` 볼륨을 생성할 수 있었다는 사실은 SAT 연결 가능성을 입증하지 않습니다. 실습 계정에서 `HighPerformanceSSD` 생성과 SAT 연결을 모두 지원하는 존을 담당자 또는 계정의 서비스 안내에서 먼저 확인해 `SAT_FILE_ZONE`에 입력하세요. 아직 확인하지 못했다면 생성 명령을 실행하지 않습니다. [CLI Common](https://docs.e.samsungsdscloud.com/clireference/cli-common/)과 [CreateVolume 1.2](https://docs.e.samsungsdscloud.com/clireference/storage/filestorage/clis/createvolume/1.2/)에서 옵션 형식을 확인합니다.
 
+먼저 SAT 연결과 GPU 할당량을 CLI로 조회합니다. 적용값이 0이거나 항목이 없으면 생성 단계에서 멈춥니다. 이 계정은 2026-10-24 조회에서 세 값 모두 0이었습니다. 설치된 `scp-cli` v2.1.0의 quota 명령은 조회만 지원하므로 계정 관리자 또는 SDS 지원을 통해 SAT File Storage 연결 한도 1 이상, 사용할 GPU 유형의 한도 1 이상, `HighPerformanceSSD`를 생성·SAT에 연결할 수 있는 존을 확인해야 합니다. [Quota 변경 안내](https://docs.e.samsungsdscloud.com/userguide/management/quota/how_to_guides/#change)를 참고하세요.
+
+```bash
+(
+  set -euo pipefail
+  scp-cli quota account-quota list --size 1000 --format json | python3 -c '
+import json, sys
+items = json.load(sys.stdin).get("account_quotas")
+if not isinstance(items, list):
+    sys.exit("quota 응답 형식 오류: 생성 중단")
+keys = ("SAT.FILE_STORAGE.MOUNT.MAX.COUNT", "SAT.H100_GPU.MAX.COUNT", "SAT.B300_GPU.MAX.COUNT")
+values = {}
+for key in keys:
+    matches = [item for item in items if isinstance(item, dict) and item.get("quota_item") == key]
+    if len(matches) != 1 or matches[0].get("request_class") != "Account":
+        sys.exit(f"{key}: 적용 범위 또는 레코드 수 불명확, 생성 중단")
+    value = matches[0].get("applied_value")
+    if isinstance(value, bool) or not isinstance(value, int):
+        sys.exit(f"{key}: 적용값 형식 오류, 생성 중단")
+    values[key] = value
+    print(f"{key}: {value}")
+if values[keys[0]] < 1 or max(values[keys[1]], values[keys[2]]) < 1:
+    sys.exit("SAT File Storage 또는 GPU quota가 0입니다. 증설 완료 전 생성 중단.")
+'
+)
+```
+
 설치된 CLI의 생성 옵션과 현재 볼륨 목록을 확인합니다. 목록은 생성 전 상태와 타임아웃 후 중복 여부를 확인하는 데 사용합니다.
 
 ```bash
@@ -188,50 +217,29 @@ export PATH="$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune/tools:$PATH
 )
 ```
 
-계정에서 확인한 SAT 호환 존을 입력하고 새 이름을 기록한 뒤 생성 요청을 **한 번만** 보냅니다. 존을 확인하지 못했다면 Enter를 눌러 중단하세요. 출력된 이름은 응답이 지연되거나 타임아웃될 때 조회에 사용합니다.
+계정에서 확인한 SAT 호환 존을 입력합니다. 아래 보조 스크립트는 quota·리전·CLI 옵션을 **다시 검사**한 후 새 `HighPerformanceSSD` NFS 볼륨을 한 번만 생성합니다. 존을 확인하지 못했다면 Enter를 눌러 중단하세요. `Request evidence`에 출력된 로컬 디렉터리에 요청 이름·존·응답·조회 결과가 남습니다.
 
 ```bash
 (
   set -euo pipefail
+  cd ~/scloud-terraform-tutorial/labs/ynat-full-finetune
   read -r -p '계정에서 확인한 SAT 호환 HighPerformanceSSD 존 (미확인 시 Enter): ' SAT_FILE_ZONE
   [[ -n "$SAT_FILE_ZONE" ]] || { echo '검증된 SAT 호환 존이 없어 생성 중단' >&2; exit 1; }
-  printf '%s\n' "$SAT_FILE_ZONE" > evidence/file-volume-zone.txt
-  SAT_VOLUME_NAME="satynat$(date -u +%y%m%d%H%M%S)"
-  printf '새 File Storage 이름: %s\n' "$SAT_VOLUME_NAME"
-  printf '%s\n' "$SAT_VOLUME_NAME" > evidence/file-volume-name.txt
-  scp-cli filestorage volume create \
-    --zone "$SAT_FILE_ZONE" \
-    --type_name HighPerformanceSSD \
-    --protocol NFS \
-    --name "$SAT_VOLUME_NAME"
+  bash scripts/create-file-storage.sh "$SAT_FILE_ZONE"
 )
 ```
 
-생성 응답의 `volume_id`를 입력해 조회합니다. SAT Volume ID가 아니라 File Storage ID입니다. 조회 결과의 실제 이름과 `available` 상태를 확인하세요. 서비스가 요청 이름에 접미사를 붙일 수 있습니다.
+생성 응답의 File Storage `volume_id`를 스크립트가 요청하면 입력합니다. SAT Volume ID가 아닙니다. 스크립트의 CLI 조회에서 실제 이름과 `Available` 상태를 확인하세요. 생성 요청이 타임아웃되면 출력된 `Request evidence` 디렉터리의 `volume-name.txt`에 기록된 이름으로 `scp-cli filestorage volume list --name <기록된-이름>`을 먼저 조회하고, 생성 명령을 재실행하지 않습니다. `400 Bad Request` 또는 `filestorage.BadRequest.Invalid.zone`은 다른 존을 추측해 반복할 근거가 아닙니다. 계정에서 `HighPerformanceSSD`와 SAT 연결을 지원하는 존을 다시 확인하세요. `--debug true` 출력에는 인증 헤더·토큰이 포함될 수 있으므로 공유하거나 공개 저장소에 남기지 않습니다.
 
-```bash
-(
-  set -euo pipefail
-  read -r -p '생성 응답의 volume_id: ' SAT_FILE_VOLUME_ID
-  [[ -n "$SAT_FILE_VOLUME_ID" ]] || { echo 'volume_id가 필요합니다.' >&2; exit 1; }
-  scp-cli filestorage volume show --volume_id "$SAT_FILE_VOLUME_ID"
-)
-```
+### 5-2. SAT Volume 연결 — 현재 CLI 경로 미제공
 
-생성 요청이 타임아웃되면 `scp-cli filestorage volume list --name "$(cat evidence/file-volume-name.txt)"`로 먼저 확인하고, 생성 명령을 무조건 재실행하지 않습니다. `400 Bad Request` 또는 `filestorage.BadRequest.Invalid.zone`이 나오면 다른 존을 추측해 반복하지 말고 계정에서 `HighPerformanceSSD`와 SAT 연결을 지원하는 존을 다시 확인하세요. `--debug true` 출력에는 인증 헤더·토큰이 포함될 수 있으므로 공유하거나 공개 저장소에 남기지 않습니다. 성공 전에는 5-2로 진행하지 않습니다. 최종 준비 완료 상태를 콘솔에서 확인합니다.
+설치된 `scp-cli` v2.1.0의 명령 목록과 [공식 AI-ML CLI](https://docs.e.samsungsdscloud.com/clireference/ai-ml/)·[API](https://docs.e.samsungsdscloud.com/apireference/ai-ml/) 인덱스에는 Simple AI Training Volume 연결 명령이 없습니다. 따라서 **CLI만 사용하는 조건에서는 여기서 중단**합니다. 지원되지 않는 `scp-cli sat ...` 명령을 만들어 사용하지 않습니다. 계정의 `SAT.FILE_STORAGE.MOUNT.MAX.COUNT` 적용값도 1 이상이어야 합니다.
 
-### 5-2. SAT에 연결 — 콘솔 1회
-
-1. **Simple AI Training → Volume → Volume 연결**로 이동합니다.
-2. Volume명 `ynat-results`, 위에서 새로 만든 `HighPerformanceSSD` File Storage를 선택합니다. 대상 목록에 없다면 연결 가능한 유형·존을 확인하고 중단합니다.
-3. 생성된 SAT Volume 이름/ID를 기록합니다. File Storage ID와 SAT Volume ID는 구분합니다.
-4. quota `SAT.FILE_STORAGE.MOUNT.MAX.COUNT`가 1 이상이어야 합니다. 부족하면 Quota Service에서 변경 요청합니다.
-
-Training Job에서 이 Volume을 `/results`에 마운트합니다. 컨테이너 사용자가 해당 경로에 쓸 수 있어야 합니다. NFS root squash/소유권 문제는 실습 전용 디렉터리의 UID/GID와 접근 규칙으로 해결하고 공유 볼륨 전체를 `chmod 777`로 바꾸지 않습니다.
+향후 지원되는 인터페이스가 제공되면 새 `HighPerformanceSSD` File Storage를 SAT Volume `ynat-results`로 연결하고 Training Job의 `/results`에 마운트해야 합니다. File Storage ID와 SAT Volume ID를 구분해 기록합니다. NFS 쓰기 권한은 실습 전용 디렉터리의 UID/GID와 접근 규칙으로 조정하며, 공유 볼륨 전체를 `chmod 777`로 바꾸지 않습니다.
 
 ## 6. 새 SCR Registry와 Repository 생성 — CLI
 
-`kr-west1`의 기존 SCP 내부 Linux 준비 서버에서 실행합니다. 이 서버는 8절에서 같은 리전의 File Storage도 NFS로 마운트합니다. 실습 전용 Registry와 Repository를 새로 만들며 저장량에 따라 비용이 발생합니다.
+SAT 연결·Job 실행 경로와 quota가 해결된 뒤 `kr-west1`의 기존 SCP 내부 Linux 준비 서버에서 실행합니다. 이 서버는 8절에서 같은 리전의 File Storage도 NFS로 마운트합니다. 실습 전용 Registry와 Repository를 새로 만들며 저장량에 따라 비용이 발생합니다.
 
 ### 6-1. Registry 생성
 
@@ -408,22 +416,22 @@ python3 -m json.tool bundle/manifest.json
 
 ## 8. File Storage에 코드·데이터 업로드
 
-사용자가 요청한 업로드 대상은 **File Storage**입니다. 학습 코드와 모델·데이터는 NFS에 올리고, SCR에는 의존성과 학습 코드가 포함된 실행 이미지를 올립니다. Job은 NFS에 업로드한 릴리스 코드를 실행합니다. Docker 빌드 컨텍스트에서 bundle을 제외하므로 `Dockerfile.runtime`과 `push-training-image.sh`가 만드는 이미지에는 모델·데이터가 없습니다. 아래 본문 명령은 보조 스크립트 없이 직접 실행할 수 있습니다.
+사용자가 요청한 업로드 대상은 **File Storage**입니다. 학습 코드와 모델·데이터는 NFS에 올리고, SCR에는 의존성과 학습 코드가 포함된 실행 이미지를 올립니다. Job은 NFS에 업로드한 릴리스 코드를 실행합니다. Docker 빌드 컨텍스트에서 bundle을 제외하므로 `Dockerfile.runtime`과 `push-training-image.sh`가 만드는 이미지에는 모델·데이터가 없습니다. **5-2절의 SAT 연결과 실제 NFS 주소·접근 규칙을 지원되는 CLI/API로 확인할 때까지 이 절의 업로드를 실행하지 않습니다.**
 
 ### 8-1. 준비 서버에 File Storage 마운트
 
-준비 서버는 File Storage NFS에 접근 가능한 내부 Linux 서버여야 합니다. File Storage 콘솔의 접근 제어에 해당 서버가 허용되어 있어야 합니다. 다음은 Ubuntu/Debian 예시입니다. NFS 주소는 생성된 자원에만 존재하는 값이므로 콘솔의 마운트 명령에서 복사합니다.
+준비 서버는 File Storage NFS에 접근 가능한 내부 Linux 서버여야 합니다. 실제 File Storage의 NFS 주소와 접근 허용 규칙을 지원되는 조회 경로에서 확인해야 합니다. 현재 계정에서는 해당 자원이 없어 CLI 출력 필드를 검증하지 못했습니다. 주소·접근 규칙을 확인할 수 없으면 마운트하지 않습니다. 다음은 Ubuntu/Debian 예시입니다.
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y nfs-common
 sudo mkdir -p /mnt/sat-results
-read -r -p 'File Storage 콘솔의 NFS 서버:/export 주소: ' SAT_NFS_SOURCE
+read -r -p '확인한 File Storage NFS 서버:/export 주소: ' SAT_NFS_SOURCE
 sudo mount -t nfs "$SAT_NFS_SOURCE" /mnt/sat-results
 findmnt /mnt/sat-results
 ```
 
-콘솔이 지정한 버전·옵션이 있으면 그 마운트 명령을 사용합니다. 이미 마운트돼 있다면 중복 mount하지 않습니다. 현재 사용자에게 업로드 디렉터리의 쓰기 권한이 필요합니다.
+서비스가 지정한 NFS 버전·옵션을 확인한 뒤 마운트합니다. 이미 마운트돼 있다면 중복 mount하지 않습니다. 현재 사용자에게 업로드 디렉터리의 쓰기 권한이 필요합니다.
 
 ### 8-2. 업로드 및 무결성 검사
 
@@ -523,11 +531,11 @@ print(matches[0]["id"])
 
 SCR 이미지 목록은 `trainer`의 ID와 `Active` 상태만 확인합니다. 이어서 태그 조회 응답의 `reference_tags`에 `runtime-v1`이 있고 `hash_digest`가 `docker push` 출력의 SHA-256 digest와 일치하는지 확인하세요. 이미지 목록만으로는 tag·digest를 검증할 수 없습니다. 값이 다르거나 태그 조회가 비어 있으면 Job을 시작하지 않습니다. Job의 이미지 URL은 출력된 `<Private Repository endpoint>/trainer:runtime-v1` 전체 값입니다. 이미지 인증 필드에는 해당 SCR pull 자격증명을 입력하고, File Storage는 `/results`에 마운트합니다.
 
-## 9. 먼저 smoke Job 실행
+## 9. smoke Job 사양 — SAT CLI 지원 전 실행 보류
 
-실제 GPU 과금은 이 단계에서 시작할 수 있습니다. 첫 실행은 전체 학습이 아니라 **70건(클래스당 10건), 평가 14건, 약 5회 업데이트**입니다. 기존 계획의 64건 대신 7개 클래스 균형을 맞추고 5 updates를 만들기 위해 70건으로 조정했습니다.
+지원되는 SAT 실행 인터페이스와 할당량이 준비되기 전에는 이 절을 실행하지 않습니다. 실제 GPU 과금은 Job을 시작하면 발생할 수 있습니다. 첫 실행은 전체 학습이 아니라 **70건(클래스당 10건), 평가 14건, 약 5회 업데이트**입니다. 기존 계획의 64건 대신 7개 클래스 균형을 맞추고 5 updates를 만들기 위해 70건으로 조정했습니다.
 
-콘솔 **Simple AI Training → Training Job 생성**에서 다음을 입력합니다.
+지원되는 SAT 실행 인터페이스가 제공되면 다음 값을 사용합니다. 현재 `scp-cli` v2.1.0에는 Training Job 생성 명령이 없습니다.
 
 | 항목 | 입력 |
 |---|---|
@@ -536,7 +544,7 @@ SCR 이미지 목록은 `trainer`의 ID와 `Active` 상태만 확인합니다. �
 | 분산 Framework | 이미지의 PyTorch 2.5.1/CUDA 12.4와 호환되는 PyTorch 옵션. 제공 버전과 launcher 요구는 SDS 확인 |
 | 노드/GPU | 노드 1, GPU 1, BF16 지원 GPU. 가용 SKU 중 예산에 맞는 최소 사양 |
 | 메모리 | CPU RAM 16GB 이상 우선 검토, VRAM 24GB급 권장 |
-| Shared Memory | 콘솔 허용 단위/최소값 확인. DataLoader worker=0으로 구성되어 큰 공유 메모리를 전제하지 않음 |
+| Shared Memory | 서비스 허용 단위/최소값 확인. DataLoader worker=0으로 구성되어 큰 공유 메모리를 전제하지 않음 |
 | Job Failover | 사용 안 함. 첫 검증에서 자동 재시작 방지 |
 | 이미지 URL | 8-3절에서 출력한 `<Private Repository endpoint>/trainer:runtime-v1` 전체 값 |
 | 이미지 인증 | 해당 SCR pull 자격증명 |
@@ -553,23 +561,23 @@ python /results/releases/ynat-v1/code/run.py --bundle /results/releases/ynat-v1/
 
 기대: Job `Completed`, 출력 `status.json`의 `COMPLETED`, 마지막 `PASS`. stdout과 File Storage의 `run.log`에 실행 로그를 함께 기록하며 `training.jsonl`에는 update별 수치를 기록합니다. 이미지 로딩 중에는 로그가 잠시 조용할 수 있습니다. `/results`가 실제 마운트되지 않았으면 실행을 거부합니다.
 
-smoke는 10분 프로세스 시간 제한이 있습니다. 제한 도달 시 `TIMEOUT`, exit 124로 종료합니다. 프로비저닝·이미지 pull·플랫폼 과금 시간을 포함한 제한이 아니므로 콘솔도 직접 확인해야 합니다.
+smoke는 10분 프로세스 시간 제한이 있습니다. 제한 도달 시 `TIMEOUT`, exit 124로 종료합니다. 프로비저닝·이미지 pull·플랫폼 과금 시간을 포함한 제한이 아니므로 Job 상태와 GPU 자원 해제를 별도로 확인해야 합니다.
 
 ## 10. 결과 경로 접근 및 smoke 판정
 
 8절에서 준비 서버에 마운트했다면 아래 설치·mount 블록은 생략하고 같은 서버에서 결과 조회 블록만 실행합니다.
 
-이미 File Storage를 마운트한 개발 서버가 있으면 해당 경로를 사용합니다. 없다면 해당 NFS에 접근하도록 허용된 **기존 내부 Linux 서버**에서 콘솔의 마운트 안내를 따릅니다. 외부 인터넷에서 NFS가 직접 접근된다고 가정하지 않습니다.
+8절의 마운트·업로드와 smoke Job이 완료된 후에만 이 결과 단계를 실행합니다. 기존 내부 Linux 서버가 해당 NFS에 접근하도록 허용됐는지 확인합니다. 외부 인터넷에서 NFS가 직접 접근된다고 가정하지 않습니다.
 
 **여기부터는 NFS 접근 가능한 내부 Linux 서버의 Bash에서 실행합니다.** 준비 서버와 다른 서버라면 해당 서버에 SSH로 접속하세요. 4~8절의 환경변수가 전달된다고 가정하지 않습니다.
 
-아래는 Ubuntu/Debian 계열 서버 예시입니다. 콘솔이 별도 NFS 버전/옵션을 안내하면 그 옵션을 사용하세요.
+아래는 Ubuntu/Debian 계열 서버 예시입니다. 8절에서 검증한 NFS 주소와 서비스가 요구하는 버전·옵션을 사용하세요.
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y nfs-common
 sudo mkdir -p /mnt/sat-results
-export SAT_NFS_SOURCE='콘솔의-실제-NFS주소:/export경로'
+export SAT_NFS_SOURCE='8절에서-검증한-NFS주소:/export경로'
 sudo mount -t nfs "$SAT_NFS_SOURCE" /mnt/sat-results
 findmnt /mnt/sat-results
 ls /mnt/sat-results
@@ -649,7 +657,7 @@ ls -lh "$SAT_RUN_DIR/model"
 ## 14. 종료와 비용 확인
 
 1. Job `Completed/Failed`만 보고 끝내지 말고 GPU 할당이 해제됐는지 확인합니다.
-2. `TIMEOUT` 또는 로그가 멈춘 상태면 콘솔의 Job 삭제/해지 절차로 남은 작업을 정리하고 실제 해제까지 확인합니다.
+2. `TIMEOUT` 또는 로그가 멈춘 상태에서 Job을 해지하고 GPU 해제를 확인할 수 있는 **지원 관리 경로**를 Job 시작 전에 확보합니다. 현재 공개 `scp-cli`에는 SAT Job 삭제 명령이 없으므로 CLI만 사용하는 조건에서는 Job을 시작하지 않습니다.
 3. 출력은 삭제 전에 별도 보관합니다. 학습 스크립트 timeout은 클라우드 과금 차단을 보장하지 않습니다.
 4. 필요한 결과를 보관하고 사용 주체를 확인한 뒤, 이번 실습에서 새로 만든 File Storage·SAT Volume·SCR Repository·Registry를 정리합니다.
 5. 학습 과정에서 만들지 않은 약정 Workspace·공유 볼륨은 건드리지 않습니다.
