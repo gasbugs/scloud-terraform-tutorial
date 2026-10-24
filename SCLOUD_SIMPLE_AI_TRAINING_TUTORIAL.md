@@ -16,9 +16,9 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 작성일: 2026-10-23. 대상: Simple AI Training의 **Training Job**.
 
-> 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 현재 작성 환경에는 Docker 실행 명령이 없어 이미지 빌드, 데이터 다운로드, CUDA 학습, SCP 자원 생성은 실행하지 않았습니다. 아래 `PASS`는 사용자가 실제 실행 후 확인할 기준이지 이미 얻은 실측 결과가 아닙니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
+> 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 교육 계정에서 File Storage `SSD`/`kr-west1-b` 생성과 조회를 확인했습니다. Docker 이미지 빌드, 데이터 다운로드, CUDA 학습과 SAT 연결은 실행하지 않았습니다. 아래 `PASS`는 사용자가 실제 실행 후 확인할 기준이지 이미 얻은 실측 결과가 아닙니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
 
-> 실행 이슈: 사용자가 5-1의 File Storage 생성 명령에서 `Bad Request`를 보고했습니다. 현재 원인은 미확인입니다. 해당 명령은 성공 검증된 명령이 아니며, 응답 본문의 오류 코드·메시지와 계정에서 지원하는 존/볼륨 유형을 확인한 뒤 수정해야 합니다.
+> 실행 이슈: 사용자가 5-1의 File Storage 생성 명령에서 `Bad Request`를 보고했습니다. 오류 코드는 `filestorage.BadRequest.Invalid.zone`이며, 이전 예시의 `kr-west1-a`는 `SSD`로도 거부됐습니다. `SSD`/`kr-west1-b`는 이 교육 계정에서 생성과 조회에 성공했습니다. 다른 계정은 콘솔에서 지원 조합을 확인해야 합니다.
 
 ## 1. 무엇을 만드는가
 
@@ -44,7 +44,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 |---|---|---|
 | Linux x86_64 준비 머신 | 기존 PC/개발 서버 사용. GPU 불필요 | Docker를 사용할 수 있는 기존 Linux 환경 확보 |
 | SCP 인증키·권한 | 발급받은 교육 계정 사용 | 담당자에게 File Storage/SCR/SAT/ServiceWatch 권한 요청 |
-| File Storage | 실습 전용 NFS 고성능 SSD 볼륨 1개 새로 생성 | SAT 연결 가능한 존·quota 확인 |
+| File Storage | 실습 전용 NFS SSD 볼륨 1개 새로 생성 | SAT 연결 가능한 존·quota 확인 |
 | SCR | 기존 레지스트리 우선 사용 | 없으면 콘솔에서 생성 후 접근 대상 설정 |
 | SAT Volume 연결 | 콘솔에서 File Storage 연결 | quota 확인 후 1회 연결 |
 | Training Job | 콘솔에서 1GPU Job 실행 | smoke 통과 후 full 실행 |
@@ -53,7 +53,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 ### 실행 전 확인하고 진행 중 기록할 값
 
-- Enterprise Account: 발급받은 계정. 이 가이드의 기본 리전은 `kr-west1`, File Storage 존은 `kr-west1-a`입니다. 공식 CLI 문서의 예시 값을 기준으로 하며, 계정에서 SAT에 연결 가능한 존인지 생성 전에 확인합니다.
+- Enterprise Account: 발급받은 계정. 이 가이드의 기본 리전은 `kr-west1`, File Storage 존은 이 교육 계정에서 검증한 `kr-west1-b`입니다. 계정에서 SAT에 연결 가능한 존인지 생성 전에 확인합니다.
 - 1노드·1GPU 지원 여부, GPU 종류와 VRAM(24GB급 권장), BF16 지원 여부.
 - GPU 상품 단가·최소 청구 단위·Job 종료 후 자원 해제 기준.
 - 새 File Storage의 존·이름과 SAT 연결 가능 여부. 생성 후 ID와 NFS 마운트 주소를 기록합니다.
@@ -172,9 +172,9 @@ PYCONFIG
 
 ### 5-1. 새 File Storage 생성 — CLI
 
-4절의 CLI 설치·인증을 완료한 Linux 준비 서버의 Bash에서 실행합니다. 실습 전용 File Storage를 새로 1개 생성하므로 비용이 발생합니다. 본 예제는 실행 1회당 모델 가중치 약 2GB(FP32)와 소량의 로그를 저장하므로 결과용 여유 공간 10GB 이상을 권장합니다. File Storage의 최소 청구 용량은 별도입니다.
+4절의 CLI 설치·인증을 완료한 Linux 준비 서버의 Bash에서 실행합니다. 실습 전용 File Storage를 새로 1개 생성하며, 저장 데이터 사용량에 따라 비용이 발생합니다. 본 예제는 실행 1회당 모델 가중치 약 2GB(FP32)와 소량의 로그를 저장하므로 결과용 여유 공간 10GB 이상을 권장합니다. File Storage의 최소 청구 용량은 별도입니다.
 
-`kr-west1`은 CLI 설정의 **리전**, `kr-west1-a`는 생성 명령의 **존**입니다. [CLI Common](https://docs.e.samsungsdscloud.com/clireference/cli-common/)과 [CreateVolume 1.2](https://docs.e.samsungsdscloud.com/clireference/storage/filestorage/clis/createvolume/1.2/)의 예시를 사용합니다. 계정의 SAT에서 연결 가능한 존인지 먼저 확인합니다.
+`kr-west1`은 CLI 설정의 **리전**, `kr-west1-b`는 생성 명령의 **존**입니다. `SSD`/`kr-west1-b`는 이 교육 계정에서 검증한 조합입니다. [CLI Common](https://docs.e.samsungsdscloud.com/clireference/cli-common/)과 [CreateVolume 1.2](https://docs.e.samsungsdscloud.com/clireference/storage/filestorage/clis/createvolume/1.2/)에서 옵션 형식을 확인하고, 다른 계정은 콘솔의 File Storage 생성 화면에서 볼륨 유형별 지원 존과 SAT 연결 가능 여부를 확인합니다. 삼성SDS는 [고성능 SSD를 Multi-node GPU Cluster 전용](https://www.samsungsds.com/kr/techreport/what-is-cloud-storage.html)으로 설명합니다.
 
 설치된 CLI의 생성 옵션과 현재 볼륨 목록을 확인합니다. 목록은 생성 전 상태와 타임아웃 후 중복 여부를 확인하는 데 사용합니다.
 
@@ -197,14 +197,14 @@ export PATH="$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune/tools:$PATH
   printf '새 File Storage 이름: %s\n' "$SAT_VOLUME_NAME"
   printf '%s\n' "$SAT_VOLUME_NAME" > evidence/file-volume-name.txt
   scp-cli filestorage volume create \
-    --zone kr-west1-a \
-    --type_name HighPerformanceSSD \
+    --zone kr-west1-b \
+    --type_name SSD \
     --protocol NFS \
     --name "$SAT_VOLUME_NAME"
 )
 ```
 
-생성 응답의 `volume_id`를 입력해 조회합니다. SAT Volume ID가 아니라 File Storage ID입니다.
+생성 응답의 `volume_id`를 입력해 조회합니다. SAT Volume ID가 아니라 File Storage ID입니다. 조회 결과의 실제 이름과 `available` 상태를 확인하세요. 서비스가 요청 이름에 접미사를 붙일 수 있습니다.
 
 ```bash
 (
@@ -215,7 +215,7 @@ export PATH="$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune/tools:$PATH
 )
 ```
 
-생성 요청이 타임아웃되면 `scp-cli filestorage volume list --name "$(cat evidence/file-volume-name.txt)"`로 먼저 확인하고, 생성 명령을 무조건 재실행하지 않습니다. `Bad Request`가 나면 오류 본문과 계정의 존·볼륨 유형·권한·quota를 확인하고, 성공 전에는 5-2로 진행하지 않습니다. 최종 준비 완료 상태를 콘솔에서 확인합니다.
+생성 요청이 타임아웃되면 `scp-cli filestorage volume list --name "$(cat evidence/file-volume-name.txt)"`로 먼저 확인하고, 생성 명령을 무조건 재실행하지 않습니다. `filestorage.BadRequest.Invalid.zone`은 지정한 볼륨 유형에 사용할 수 없는 존이라는 뜻입니다. 이 계정에서 `kr-west1-a`는 `SSD`로도 거부됐습니다. 다른 존을 추측해 생성 요청을 반복하지 말고 콘솔의 File Storage 생성 화면에서 지원 조합을 확인하세요. `--debug true` 출력에는 인증 헤더·토큰이 포함될 수 있으므로 공유하거나 공개 저장소에 남기지 않습니다. 성공 전에는 5-2로 진행하지 않습니다. 최종 준비 완료 상태를 콘솔에서 확인합니다.
 
 ### 5-2. SAT에 연결 — 콘솔 1회
 

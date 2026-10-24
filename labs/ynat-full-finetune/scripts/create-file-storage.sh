@@ -9,7 +9,7 @@ if [[ $# -gt 2 ]]; then
   exit 2
 fi
 command -v scp-cli >/dev/null || { echo 'Install scp-cli and configure authentication first.' >&2; exit 1; }
-SAT_ZONE="${1:-kr-west1-a}"
+SAT_ZONE="${1:-kr-west1-b}"
 SAT_VOLUME_NAME="${2:-satynat$(date -u +%y%m%d%H%M%S)}"
 [[ "$SAT_VOLUME_NAME" =~ ^[a-z][a-z0-9_]{2,20}$ ]] || { echo 'Volume name must be 3-21 lowercase letters, digits, or underscores and start with a letter.' >&2; exit 2; }
 # Region and availability zone are separate values; reject mismatches before creation.
@@ -35,14 +35,21 @@ for option in zone type_name protocol name; do
   }
 done
 scp-cli filestorage volume list | tee "$EVIDENCE_DIR/volumes-before.txt"
-echo "Creating one NFS HighPerformanceSSD volume: zone=$SAT_ZONE name=$SAT_VOLUME_NAME"
+echo "Creating one NFS SSD volume: zone=$SAT_ZONE name=$SAT_VOLUME_NAME"
 echo 'This may incur storage charges. Do not rerun after a timeout; inspect volume list first.'
 # No automatic retry: a timeout can occur after the server has accepted creation.
-scp-cli filestorage volume create \
+# Do not share --debug true output; it can expose authentication headers and tokens.
+if scp-cli filestorage volume create \
   --zone "$SAT_ZONE" \
-  --type_name HighPerformanceSSD \
+  --type_name SSD \
   --protocol NFS \
-  --name "$SAT_VOLUME_NAME" | tee "$EVIDENCE_DIR/create-response.txt"
+  --name "$SAT_VOLUME_NAME" | tee "$EVIDENCE_DIR/create-response.txt"; then
+  :
+else
+  status=$?
+  echo 'Creation failed. If the error is filestorage.BadRequest.Invalid.zone, check the supported zone for SSD in the File Storage console before retrying.' >&2
+  exit "$status"
+fi
 printf 'Enter volume_id from the response above (not SAT Volume ID): '
 read -r SAT_FILE_VOLUME_ID
 [[ -n "$SAT_FILE_VOLUME_ID" ]] || { echo 'No ID entered; inspect the response before retrying.' >&2; exit 1; }
