@@ -24,4 +24,14 @@
 - 실행 이미지에서 bundle COPY 및 기본 /opt/bundle 경로 제거.
 - 모든 shell 스크립트와 가이드 Bash 블록 구문 검사 통과.
 - run.py의 --bundle 누락 거부 확인. 파일시스템을 모의한 사전 검사에서 READY 누락/다른 릴리스 코드 거부 및 정상 릴리스 통과 확인.
-- 실제 NFS·Docker·GPU 실행은 미검증. Bad Request 원인 미해결.
+- 이 통합 경로 수정 시점에는 실제 NFS·Docker·GPU 실행을 검증하지 않았다. File Storage Bad Request 원인도 미해결.
+
+2026-10-24 runtime 의존성 수정 검증:
+
+- 기존 로컬 이미지에는 NumPy 1.26.4와 PyArrow 26.0.0이 설치돼 `datasets` import가 실패했다.
+- `Dockerfile.runtime`에 `pyarrow==18.1.0`을 고정하고 이미지 빌드 중 NumPy/PyArrow/Datasets/Transformers/PyTorch import 검사를 추가했다.
+- `docker build --platform linux/amd64 -f Dockerfile.runtime -t sat-ynat-runtime:v1 .` 통과. 빌드 로그: `dependency imports ok: 1.26.4 18.1.0 3.1.0`.
+- `docker run --rm --network none sat-ynat-runtime:v1`에서 패키지 import와 `prepare.py --help` 통과; 작은 `datasets.Dataset.from_dict` 테이블 생성도 통과.
+- `pip check`는 베이스 이미지의 별도 `ninja 1.11.1.1 is not supported on this platform`를 보고해 빌드 게이트로 쓰지 않았다. 해당 검사만으로 PyArrow ABI 충돌도 잡지 못했다.
+- 실제 `prepare.py --out /bundle` 실행으로 Qwen/Qwen2.5-0.5B와 KLUE YNAT 다운로드 및 오프라인 번들 생성 완료: `PASS: prepared offline bundle; no GPU used`. `manifest.json`의 train 1,400/dev 350/test 700행과 각 JSONL SHA-256을 확인했다.
+- SCR push, SAT Job, CUDA 학습은 이번 검증에서 실행하지 않았다.

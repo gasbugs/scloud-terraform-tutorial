@@ -16,7 +16,7 @@ cd "$HOME/scloud-terraform-tutorial/labs/ynat-full-finetune"
 
 작성일: 2026-10-23. 대상: Simple AI Training의 **Training Job**.
 
-> 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 교육 계정에서 File Storage `SSD`/`kr-west1-b` 테스트 생성·조회 후 삭제를 확인했지만, SAT 연결에 필요한 `HighPerformanceSSD`의 지원 존과 실제 SAT 연결은 검증하지 못했습니다. SCR 생성 명령은 로컬 `--dry-run true` 파싱만 검증했으며, 이 가이드의 검증 과정에서 Registry/Repository를 생성하거나 이미지를 업로드하지 않았습니다. Docker 이미지 빌드, 데이터 다운로드, CUDA 학습도 실행하지 않았습니다. 아래 `PASS`는 사용자가 실제 실행 후 확인할 기준이지 이미 얻은 실측 결과가 아닙니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
+> 검증 상태: 공식 문서의 콘솔 항목·CLI 명령과 Python 구문/오프라인 평가 로직을 확인했습니다. 교육 계정에서 File Storage `SSD`/`kr-west1-b` 테스트 생성·조회 후 삭제를 확인했지만, SAT 연결에 필요한 `HighPerformanceSSD`의 지원 존과 실제 SAT 연결은 검증하지 못했습니다. SCR 생성 명령은 로컬 `--dry-run true` 파싱만 검증했으며, 이 가이드의 검증 과정에서 Registry/Repository를 생성하거나 이미지를 업로드하지 않았습니다. 수정된 Docker 이미지의 로컬 빌드와 의존성 import, Hugging Face 모델·데이터 다운로드 및 오프라인 번들 생성은 확인했습니다. SCR 업로드, SAT Job, CUDA 학습은 실행하지 않았습니다. 7절의 `PASS: prepared offline bundle; no GPU used`는 실제 확인한 결과이며, 이후 단계의 `PASS`는 사용자가 실행 후 확인할 기준입니다. Enterprise 미제공인 Training Lab은 사용하지 않습니다.
 
 > 실행 이슈: `HighPerformanceSSD`/`kr-west1-a` 생성 요청은 `400 Bad Request`였고, `SSD`/`kr-west1-a`는 `filestorage.BadRequest.Invalid.zone`으로 거부됐습니다. `SSD`/`kr-west1-b`는 테스트 생성·조회 후 삭제했지만 SAT 호환성은 확인되지 않았습니다. 5절의 `HighPerformanceSSD` 지원 존을 계정에서 확인하기 전에는 생성 요청을 보내지 않습니다.
 
@@ -373,20 +373,23 @@ print("Private Repository endpoint:", url.netloc + path)
 이 단계는 네트워크 다운로드와 CPU·디스크를 사용하지만 클라우드 GPU를 생성하지 않습니다. 코드의 기본 모델/데이터는 공개 저장소이며 HF 인증키가 필요 없는 구성을 목표로 합니다.
 
 ```bash
-docker build --platform linux/amd64 \
-  -f Dockerfile.runtime -t sat-ynat-runtime:v1 .
-docker run --rm sat-ynat-runtime:v1 \
-  python -c 'import torch, transformers, datasets; print(torch.__version__, transformers.__version__, datasets.__version__)'
-mkdir -p bundle
-docker run --rm --user "$(id -u):$(id -g)" \
-  --env HOME=/tmp --env HF_HOME=/tmp/huggingface \
-  --env HF_HUB_CACHE=/tmp/huggingface/hub \
-  --env HF_DATASETS_CACHE=/tmp/huggingface/datasets \
-  --mount type=bind,src="$PWD/bundle",dst=/bundle \
-  sat-ynat-runtime:v1 python /opt/lab/prepare.py --out /bundle
+(
+  set -euo pipefail
+  docker build --platform linux/amd64 \
+    -f Dockerfile.runtime -t sat-ynat-runtime:v1 .
+  docker run --rm sat-ynat-runtime:v1 \
+    python -c 'import torch, transformers, datasets, pyarrow, numpy; print(torch.__version__, transformers.__version__, datasets.__version__, pyarrow.__version__, numpy.__version__)'
+  mkdir -p bundle
+  docker run --rm --user "$(id -u):$(id -g)" \
+    --env HOME=/tmp --env HF_HOME=/tmp/huggingface \
+    --env HF_HUB_CACHE=/tmp/huggingface/hub \
+    --env HF_DATASETS_CACHE=/tmp/huggingface/datasets \
+    --mount type=bind,src="$PWD/bundle",dst=/bundle \
+    sat-ynat-runtime:v1 python /opt/lab/prepare.py --out /bundle
+)
 ```
 
-기대: 마지막에 `PASS: prepared offline bundle; no GPU used`. `bundle/manifest.json`을 확인합니다.
+새 빌드의 로그에는 `dependency imports ok: 1.26.4 18.1.0 3.1.0`이 표시됩니다. 캐시를 재사용하면 이 로그가 생략될 수 있으므로, 뒤따르는 컨테이너 import 명령의 버전 출력과 정상 종료를 확인합니다. import가 실패하면 준비 명령으로 넘어가지 않습니다. 준비가 끝나면 `PASS: prepared offline bundle; no GPU used`가 출력됩니다. 이미 `bundle/manifest.json`이 있는 경우에는 `prepare.py`를 재실행하지 말고 아래 명령으로 기존 번들을 확인합니다.
 
 ```bash
 python3 -m json.tool bundle/manifest.json
