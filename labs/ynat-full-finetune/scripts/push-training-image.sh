@@ -11,13 +11,11 @@ SAT_IMAGE_TAG="$2"
 [[ "$SAT_IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || { echo 'Invalid Docker tag.' >&2; exit 2; }
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$LAB_DIR"
-[[ -s bundle/manifest.json ]] || { echo 'Prepare bundle first using guide section 7.' >&2; exit 1; }
 docker info >/dev/null
-# Dockerfile uses this exact local base tag.
-docker image inspect sat-ynat-runtime:v1 >/dev/null
+# Build only the execution environment; data is uploaded through NFS.
 SAT_IMAGE_REF="$SAT_PUSH_HOST/ynat-full-ft:$SAT_IMAGE_TAG"
-docker build --platform linux/amd64 -t "$SAT_IMAGE_REF" .
-docker run --rm --network none "$SAT_IMAGE_REF" python -c 'from transformers import AutoTokenizer; AutoTokenizer.from_pretrained("/opt/bundle/model", local_files_only=True); print("PASS: offline tokenizer")'
+docker build --platform linux/amd64 -f Dockerfile.runtime -t "$SAT_IMAGE_REF" .
+docker run --rm --network none "$SAT_IMAGE_REF" python -c 'import torch, transformers, datasets; print(torch.__version__, transformers.__version__, datasets.__version__)'
 read -r -s -p 'SCR username: ' SAT_SCR_USER
 printf '\n'
 read -r -s -p 'SCR password: ' SAT_SCR_PASSWORD

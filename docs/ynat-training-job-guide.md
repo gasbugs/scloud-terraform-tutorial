@@ -107,7 +107,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 check_offline.py
 | `common.py` | 프롬프트·평가 계산 |
 | `check_offline.py` | 네트워크 없이 가능한 구문·평가 로직 점검 |
 | `Dockerfile.runtime` | CPU 준비와 GPU 실행에 공통으로 사용할 환경 |
-| `Dockerfile` | 준비한 모델·데이터까지 포함한 최종 이미지 |
+| `Dockerfile` | 로컬 runtime 이미지를 기반으로 하는 실행 환경 이미지. 모델·데이터 미포함 |
 
 ## 4. SCP CLI 설치·인증
 
@@ -285,7 +285,7 @@ python3 -m json.tool bundle/manifest.json
 
 ## 8. File Storage에 코드·데이터 업로드
 
-사용자가 요청한 업로드 대상은 **File Storage**입니다. 학습 코드와 모델·데이터는 NFS에 올리고, SCR에는 Python/PyTorch/CUDA 실행 환경 이미지만 올립니다. `Dockerfile`로 bundle을 이미지에 넣는 이전 경로와 `push-training-image.sh`는 이번 경로에서 사용하지 않습니다.
+사용자가 요청한 업로드 대상은 **File Storage**입니다. 학습 코드와 모델·데이터는 NFS에 올리고, SCR에는 Python/PyTorch/CUDA 실행 환경 이미지만 올립니다. Docker 빌드 컨텍스트에서 bundle을 제외하며 `Dockerfile`과 `push-training-image.sh`도 실행 환경 이미지만 만들도록 통일했습니다. 아래 본문 명령은 보조 스크립트 없이 직접 실행할 수 있습니다.
 
 ### 8-1. 준비 서버에 File Storage 마운트
 
@@ -393,7 +393,7 @@ Job 이미지에는 SAT에서 접근 가능한 pull 호스트와 위 runtime 이
 python /results/releases/ynat-v1/code/run.py --bundle /results/releases/ynat-v1/bundle --mode smoke --output /results/ynat-smoke-01
 ```
 
-`run.py`는 단일 프로세스만 허용합니다. 서비스가 강제로 다중 프로세스 launcher를 주입하면 중단하고 단일 GPU 실행 규칙을 확인하세요. 추측으로 `torchrun`을 중복 실행하지 않습니다.
+`run.py`는 단일 프로세스만 허용합니다. 코드와 bundle이 같은 File Storage 릴리스에 있고 업로드 검증 완료 표시인 `READY`가 있는지 확인한 후 시작합니다. 다운로드를 막는 오프라인 모드를 실행 시 설정합니다. 서비스가 강제로 다중 프로세스 launcher를 주입하면 중단하고 단일 GPU 실행 규칙을 확인하세요. 추측으로 `torchrun`을 중복 실행하지 않습니다.
 
 **동일 출력 디렉터리는 재사용하지 않습니다.** 재시도 시 Job명과 output을 `ynat-smoke-02`처럼 바꿉니다. 자동 재시작이 같은 output을 쓰면 시작을 거부하므로 이전 결과를 덮어쓰거나 무제한 학습하지 않습니다.
 

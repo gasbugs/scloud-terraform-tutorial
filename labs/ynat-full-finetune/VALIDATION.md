@@ -18,3 +18,10 @@
 `run.py`의 프로세스 timeout과 기존 출력 디렉터리 거부는 코드에 포함되어 있지만, 실제 SCP에서 재시작/비용 차단 기능을 검증한 것은 아니다. 가이드의 smoke 실행을 첫 통합 검증으로 수행해야 한다.
 
 추가: scripts/create-file-storage.sh 및 scripts/push-training-image.sh의 bash -n 검사 통과. 실제 CLI 생성 및 SCR push는 미실행.
+
+2026-10-24 통합 경로 수정 검증:
+
+- 실행 이미지에서 bundle COPY 및 기본 /opt/bundle 경로 제거.
+- 모든 shell 스크립트와 가이드 Bash 블록 구문 검사 통과.
+- run.py의 --bundle 누락 거부 확인. 파일시스템을 모의한 사전 검사에서 READY 누락/다른 릴리스 코드 거부 및 정상 릴리스 통과 확인.
+- 실제 NFS·Docker·GPU 실행은 미검증. Bad Request 원인 미해결.

@@ -15,7 +15,7 @@ from common import LABELS, prompt, score
 p = argparse.ArgumentParser()
 p.add_argument('--mode', choices=['smoke', 'full'], required=True)
 p.add_argument('--output', required=True)
-p.add_argument('--bundle', default='/opt/bundle')
+p.add_argument('--bundle', required=True, help='File Storage release bundle directory')
 a = p.parse_args()
 out, bundle = Path(a.output), Path(a.bundle)
 random.seed(42)

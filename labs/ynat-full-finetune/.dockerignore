@@ -3,7 +3,4 @@
 !prepare.py
 !train.py
 !run.py
-!bundle/
-!bundle/**
-bundle/**/.cache
 **/__pycache__

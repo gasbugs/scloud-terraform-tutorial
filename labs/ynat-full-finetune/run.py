@@ -11,13 +11,26 @@ import threading
 p = argparse.ArgumentParser()
 p.add_argument('--mode', choices=['smoke', 'full'], required=True)
 p.add_argument('--output', required=True)
-p.add_argument('--bundle', default='/opt/bundle')
+p.add_argument('--bundle', required=True, help='File Storage release bundle directory')
 a = p.parse_args()
 if int(os.environ.get('WORLD_SIZE', '1')) != 1 or int(os.environ.get('RANK', '0')) != 0:
     raise SystemExit('ERR: this example requires a single process on one GPU')
 out = Path(a.output).resolve()
 if not Path('/results').is_mount() or Path('/results') not in out.parents:
     raise SystemExit('ERR: mount persistent File Storage at /results and choose an output below it')
+bundle = Path(a.bundle).resolve()
+release = bundle.parent
+if Path('/results') not in bundle.parents:
+    raise SystemExit('ERR: bundle must be on File Storage mounted at /results')
+if not (release/'READY').is_file():
+    raise SystemExit('ERR: incomplete upload: release READY file is missing')
+if Path(__file__).resolve().parent != release/'code':
+    raise SystemExit('ERR: execute code and bundle from the same File Storage release')
+for required in ('manifest.json', 'train.jsonl', 'test.jsonl', 'model/config.json'):
+    if not (bundle/required).is_file():
+        raise SystemExit(f'ERR: incomplete bundle: {required}')
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['HF_DATASETS_OFFLINE'] = '1'
 out.mkdir(parents=True, exist_ok=False)
 seconds = 600 if a.mode == 'smoke' else 1800
 start = time.time()
