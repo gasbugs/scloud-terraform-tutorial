@@ -1,0 +1,5 @@
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+RUN python -m pip install --no-cache-dir transformers==4.46.3 datasets==3.1.0 huggingface_hub==0.26.2 safetensors==0.4.5 numpy==1.26.4
+WORKDIR /opt/lab
+COPY common.py prepare.py train.py run.py /opt/lab/
+ENV TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1

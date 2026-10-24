@@ -17,3 +17,12 @@ crash.*.log
 # Local-only approval request drafts
 SCR_PERMISSION_REQUEST_EMAIL.md
 
+
+# Training local data, model weights, credentials and execution evidence
+labs/ynat-full-finetune/bundle/
+labs/ynat-full-finetune/tools/
+labs/ynat-full-finetune/evidence/
+labs/ynat-full-finetune/evidence-create-*/
+__pycache__/
+*.pyc
+.scp/
