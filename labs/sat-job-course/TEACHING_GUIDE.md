@@ -4,7 +4,7 @@
 
 ## 녹화 전 공통 점검
 
-[Job 목록](http://127.0.0.1:8080/local#jobs), [원본 demo](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details), [텍스트 Job](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/details), [이미지 Job](http://127.0.0.1:8080/local#jobs/cb0e433e77965ac9ad283d14027ed2df/details), [Training Job 폼](http://127.0.0.1:8080/reference/job-new.html), [Spot 폼](http://127.0.0.1:8080/reference/job-spot.html)을 연다. 저장된 폼은 실제 SCP 백엔드에 연결되지 않으므로 생성 버튼을 누르지 않는다. 보존 결과는 AWS G6 실행 기록이며 SAT 실측이 아니다. 녹화 직전에 화면 값과 파일 링크를 다시 확인한다.
+[Job 목록](http://127.0.0.1:8080/local#jobs), [원본 demo](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details), [텍스트 Job](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/details), [이미지 Job](http://127.0.0.1:8080/local#jobs/cb0e433e77965ac9ad283d14027ed2df/details), [Training Job 폼](http://127.0.0.1:8080/reference/job-new.html), [Spot 폼](http://127.0.0.1:8080/reference/job-spot.html)을 연다. 저장된 폼은 실제 SCP 백엔드에 연결되지 않으므로 생성 버튼을 누르지 않는다. 화면의 H100 80GB는 SAT 실습 시나리오 명칭이다. 보존 결과 중 로컬에 가져온 Job은 AWS G6/L4 실행 기록이며, demo-main.zip에는 별도의 H100 80GB 참고 기록이 있다. 이를 같은 GPU에서 실행한 결과로 소개하지 않는다. 실제 SCP Job 실행 검증은 이 과정의 완료 조건이 아니다. 녹화 직전에 화면 값과 파일 링크를 다시 확인한다.
 
 ## 1편 · AI 학습 흐름과 재현성
 
