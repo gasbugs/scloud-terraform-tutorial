@@ -5,6 +5,7 @@
 | 파일 | 용도 |
 |---|---|
 | [CURRICULUM.md](CURRICULUM.md) | 8차수 시간표와 수료 기준 |
+| [SAT Training Job 과정 기획안.xlsx](outputs/01a1a667-e6a3-79d3-bb94-7717b08ece3b/SAT_Training_Job_과정_기획안.xlsx) | 제공된 Simple AI Inference 기획안의 시트·열·서식을 따른 8차수 Excel |
 | [TEACHING_GUIDE.md](TEACHING_GUIDE.md) | 5분 단위 강사 발화·화면 시연·학습자 실습·정답 |
 | [SLIDE_DECK.md](SLIDE_DECK.md) | 발표 화면에 바로 옮길 수 있는 교안 원고 |
 | [SERVICE_COMPARISON.md](SERVICE_COMPARISON.md) | SAT·SageMaker·Bedrock 실무 비교와 출처 |
