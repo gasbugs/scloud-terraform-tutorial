@@ -1,74 +1,66 @@
-# 영상용 화면 원고 · SAT와 AI 학습 운영 7편
+# 영상용 화면 원고 · SAT와 AI 학습 운영 6편
 
-[녹화 구성안](TEACHING_GUIDE.md)의 장면에 대응하는 화면 자료다. 20분 영상은 아직 녹화·실측하지 않았다. 각 화면은 새로운 개념 또는 실제 자료를 제시하며 시청자 답변을 기다리지 않는다. 로컬 시연은 교육용 구현이고 결과는 AWS G6 실행 기록이다.
+[녹화 구성안](TEACHING_GUIDE.md)의 4개 장면에 대응한다. 20분 영상은 아직 녹화·실측하지 않았다. 이론은 AI 학습 전체를 다루고, 화면 실습은 Training Job만 사용한다. 로컬 화면은 교육용 구현이며 보존 결과는 AWS G6 실행 기록이다.
 
-## 1차수 · AI 학습 흐름과 SAT의 위치
+## 1편 · 학습 흐름과 재현성
 
-데이터 수집·정제 → train/validation/test 분할 → 코드·이미지 준비 → SAT GPU Job → 모델·지표 저장 → 재로딩·활용
+데이터 정제 → train/validation/test → 학습 → 검증 → 모델 저장 → 추론 활용. SAT Job은 이 흐름의 학습 실행 구간에 있다.
 
-| 사용자 책임 | 관리형 Job의 역할 |
+| 같은 Job명으로 변경한 항목 | 달라질 수 있는 것 |
 |---|---|
-| 데이터 의미·품질, 분할, 코드·이미지·명령, 결과 검증 | GPU 자원 배치와 Job 실행·상태 관리 |
+| 데이터 revision | 학습 예시·분할 |
+| 모델 revision | 시작 가중치 |
+| seed·평가 표본 | 실행·비교 조건 |
 
-Completed는 실행 종료다. 모델 품질과 활용 가능성은 별도로 확인한다. 서비스 선택은 7편에서 다룬다.
+원본 demo input-manifest.json: train 2,700·validation 540·test 540, seed 42. run-config.json: max_steps 10, eval_samples 20. 변경 후 점수는 실제 재실행한 자료가 없으므로 제시하지 않는다.
 
-## 2차수 · 재현 가능한 입력·출력
+## 2편 · Training Job 입력·출력과 생성 설정
 
-[원본 demo](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details)의 input-manifest.json에는 데이터·모델 revision, seed 42, train 2,700·validation 540·test 540건이 남았다. run-config.json의 max_steps 10과 eval_samples 20은 이번 짧은 실행 범위다.
+[원본 demo 상세](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details): 원본 스토리지 → 컨테이너 /work → 이미지·Command → 결과 위치. 입력 기반 모델 model/model.safetensors와 출력 adapter/adapter_model.safetensors를 구별한다.
 
-원본 위치 → 컨테이너 /work → 실행 명령 → 결과 위치. 입력 model/model.safetensors와 출력 adapter/adapter_model.safetensors를 구별한다. AWS S3 경로를 SCP Object Storage 경로로 소개하지 않는다.
+[저장된 Training Job 생성 화면](http://127.0.0.1:8080/reference/job-new.html): 학습 형태·이름 → GPU·노드 → 이미지·권한 → Command → Volume/Object Storage → 요약. On-Demand는 Training Job의 실행 방식 예시다. 제출·실행은 하지 않는다.
 
-## 3차수 · On-Demand Job 설정
+## 3편 · Spot Training Job과 복구
 
-[저장된 생성 화면](http://127.0.0.1:8080/reference/job-new.html)의 학습 형태·Job명 → GPU·노드·Shared Memory → 이미지·레지스트리 → Command → 스토리지 → 요약 순서로 읽는다.
-
-| 설정 오류 | 예상되는 확인 지점 |
+| 사건 | 확인할 것 |
 |---|---|
-| 이미지 접근 불가 | 레지스트리 권한 |
-| 이미지에 코드 없음 | 이미지 내용·Command |
-| 입력 경로 불일치 | 스토리지 마운트·코드 경로 |
-| GPU 할당량 부족 | 리소스·계정 할당량 |
-
-설명용 오류와 실제 보존 로그를 구분한다. Job을 제출하지 않는다.
-
-## 4차수 · Spot과 복구 조건
-
-| 사건 | 필요한 판단 |
-|---|---|
-| Spot 회수 | 대기·중단·재개 조건 |
-| GPU 하드웨어 장애 | Job Failover 적용 범위 |
+| Spot 자원 회수 | 대기·중단·재개 |
+| GPU 하드웨어 장애 | Job Failover 적용 조건 |
 | 코드·설정 오류 | 코드·경로·이미지 수정 |
-| 진행분 손실 | 체크포인트 저장·복원 |
+| 학습 상태 손실 | 체크포인트 저장·복원 |
 
-[저장된 Spot 화면](http://127.0.0.1:8080/reference/job-spot.html)에는 Spot Job의 Failover 사용 불가 표시가 있다. 공식 기능 소개의 Spot 재개와 GPU 장애 Failover는 별개다. checkpoint-10 파일의 존재는 실제 Spot 복원 시험의 증거가 아니다.
+[저장된 Spot 화면](http://127.0.0.1:8080/reference/job-spot.html)의 Failover 사용 불가 표시를 보여 준다. 가상 60분 학습에서 10분 저장 간격은 다음 저장 직전 최대 약 10분, 30분 간격은 최대 약 30분의 계산을 다시 할 수 있다. 이는 실제 중단 측정값이 아니다. 원본 demo checkpoint-10은 저장 증거이며 Spot 복원 성공 증거가 아니다.
 
-## 5차수 · 상태와 실제 로그
+## 4편 · 상태와 실제 로그
 
-[원본 demo](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details)와 [한국어 텍스트 Job](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/details)의 설정·로그를 나란히 보여 준다.
+[원본 demo](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details): 입력 다운로드 → 학습 가능 파라미터 약 0.0319% → 10 step → 어댑터·체크포인트 업로드.
 
-- 상태는 준비·대기·실행·종료의 위치를 알려 준다.
-- 원본 demo: 입력 다운로드 → 학습 가능 파라미터 약 0.0319% → 10 step → 어댑터·체크포인트 업로드.
-- 텍스트 Job: 분류 헤드 신규 초기화 경고 → epoch 1·2 진행. 경고는 실행 실패와 다르다.
-- 가져온 로그의 시각 필드는 비어 있고 GPU 시계열은 보존되지 않았다. 기록에 없는 증거는 생성하지 않는다.
+[한국어 텍스트 Job](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/details): 신규 분류 헤드 초기화 경고 → epoch 1·2 학습 로그. 경고는 실패와 다르다. 가져온 로그의 시각 필드는 비어 있고 GPU 시계열은 보존되지 않았다. Completed는 성능 향상 판정이 아니다.
 
-## 6차수 · 결과의 품질과 한계
+## 5편 · 평가와 추론 인계
 
-| Job | 평가 표본 | 정확도 전→후 | 품질 판단 |
+| Job | 평가 표본 | 학습 전→후 | 판정 |
 |---|---:|---:|---|
-| 한국어 텍스트 | 700 | 16.0%→85.29% | 해당 test셋에서 개선 |
-| 이미지 | 2,000 | 11.2%→86.2% | 해당 test셋에서 개선 |
+| 한국어 텍스트 | 700 | 정확도 16.0%→85.29% | 이 test셋에서 개선 |
+| 이미지 | 2,000 | 정확도 11.2%→86.2% | 이 test셋에서 개선 |
 | 원본 demo | 20 | intent accuracy 5%→5% | 이 평가에서 개선 확인 안 됨 |
 
-[텍스트 비교](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/comparison) · [이미지 비교](http://127.0.0.1:8080/local#jobs/cb0e433e77965ac9ad283d14027ed2df/comparison).
+이미지 혼동행렬은 코트·셔츠의 오분류를 보여 준다. 모델 파일만으로 추론 준비가 끝나지 않는다.
 
-이미지 confusion_matrix.json: 코트 200건 중 135건 정답, 32건 풀오버, 20건 셔츠. 셔츠 200건 중 119건 정답, 34건 티셔츠/상의, 20건 풀오버. 전체 정확도만으로는 이 오류가 드러나지 않는다. 모델 파일과 지표 파일의 역할도 구별한다.
+| 과제 | 함께 인계할 것 |
+|---|---|
+| 텍스트 | 가중치, tokenizer, 라벨 설정, 제목 토큰화(max_length 64) |
+| 이미지 | model.pt, CNN 코드, 28×28 회색조·픽셀 /255 |
+| 원본 demo | 기반 모델 revision, LoRA 어댑터, tokenizer, 채팅 템플릿 |
 
-## 7차수 · SAT·SageMaker·Bedrock 선택
+저장 모델 재로딩 기록은 있다. 별도 추론 서비스 배포·요청 출력 검증은 없다.
 
-| 요구 | 후보 | 확인할 조건 |
+## 6편 · SAT·SageMaker·Bedrock 선택
+
+| 요구 | 후보 | 확인 조건 |
 |---|---|---|
-| 기존 학습 코드·이미지 유지 | SAT, SageMaker | BYOC 제공·GPU 할당량·스토리지·IAM |
-| 지원 기반 모델 조정 | Bedrock | 모델·리전·데이터 형식·사용 비용 |
-| 중단 가능한 긴 학습 | SAT Spot, SageMaker Managed Spot | 체크포인트 코드·대기 한도·Failover 범위 |
+| 기존 학습 코드·이미지 | SAT, SageMaker | BYOC·GPU 할당량·스토리지·IAM |
+| 지원 기반 모델 조정 | Bedrock | 모델·리전·데이터 형식 |
+| 중단 가능한 긴 학습 | SAT Spot, SageMaker Managed Spot | 체크포인트·대기 한도·Failover 범위 |
 
 [공식 근거 비교표](SERVICE_COMPARISON.md)의 미확인 조건을 남긴다. 같은 작업과 성공 기준의 총비용 견적 없이 가격 우열을 단정하지 않는다.
