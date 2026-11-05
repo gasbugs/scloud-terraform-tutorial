@@ -1,192 +1,85 @@
-# 발표용 교안 · SAT Training Job 8차수
+# 영상용 화면 원고 · SAT Training Job 8편
 
-이 Markdown은 차수별 화면 원고다. 각 화면의 **굵은 질문**을 먼저 던지고, [강사용 스크립트](TEACHING_GUIDE.md)의 5분 블록에 맞춰 실제 로컬 페이지로 전환한다. 제품의 현재 지원 상태와 교육용 로컬 구현을 구분한다. 비교 근거는 [SERVICE_COMPARISON.md](SERVICE_COMPARISON.md)에 있다.
+각 편은 [녹화 대본](TEACHING_GUIDE.md)의 5분 구간에 맞춰 화면을 전환한다. 화면에 질문만 남겨 시청자 답변을 기다리지 않는다. 강사가 사례와 답을 이어서 설명한다. 로컬 시연은 교육용 구현, 보존 결과는 AWS G6 실행 기록으로 표시한다.
 
----
+## 1차수 · SAT Job 구조
 
-## 1차수 · 왜 SAT Training Job인가
+### 1-1 실행 흐름
+사용자 데이터 + 코드가 든 이미지 + Command → GPU Job → 모델·지표·로그
 
-### [1-1] GPU VM 운영 대신 Job 제출
-
-`입력 데이터 + 학습 코드/이미지 + 실행 명령 → GPU Job → 모델·지표·로그`
-
-- 사용자: 데이터·코드·경로의 정확성 책임
-- SAT: 학습 자원 구성과 Job 실행 흐름 관리
-- **질문:** 입력 경로가 틀리면 GPU가 문제를 해결할까?
-
-### [1-2] AWS와의 정확한 대응 관계
-
-| SAT Training Job | SageMaker AI Training Job | Bedrock 파인튜닝 |
-|---|---|---|
-| 사용자 코드·컨테이너 Job | 사용자 코드·컨테이너 Job | 지원 기반 모델의 관리형 조정 |
-
-- 자체 `train.py` 재사용 후보: SAT·SageMaker
-- 지원 모델을 규격 데이터로 조정: Bedrock
-- **질문:** 기존 코드 그대로 실행해야 한다면 Bedrock을 첫 후보로 둘 수 있을까?
-
-### [1-3] 선택은 리전·할당량·견적까지
-
-- SCP: SAT 계정의 GPU·스토리지·BYOC 실제 상태 확인
-- AWS: SageMaker IAM·S3·네트워크 설정 확인
-- Bedrock: 지원 모델·리전·데이터 형식 확인
-- 공개 소개만으로 비용 우열 결론 금지
-
-**출처:** `scp_sat_videos` 상품설명회 00:09–03:20, [SDS SAT](https://www.samsungsds.com/kr/aiml-simple-ai-training/simple-ai-training.html), [SageMaker API](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateTrainingJob.html), [Bedrock 지원 모델](https://docs.aws.amazon.com/bedrock/latest/userguide/custom-model-fine-tuning.html).
-
----
-
-## 2차수 · Job의 입력·출력 경로
-
-### [2-1] 같은 데이터의 서로 다른 두 위치
-
-`사용자 스토리지의 원본 → Job에 연결된 스토리지 → 컨테이너 내부 Mount Path`
-
-- 이미지 URL: 실행 환경과 코드
-- Command: 컨테이너 안에서 실행할 명령
-- 결과 파일: 모델·지표·로그
-- **질문:** Object Storage URI와 `/bundle`은 같은 문자열이어야 할까?
-
-### [2-2] 원본 demo에서 찾기
-
-[입력 준비](http://127.0.0.1:8080/local#assets) → [원본 demo 상세](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details) → 로그 → 결과 파일
-
-**학습자 표:** `필드 / 실제 값 / 컨테이너 내부 또는 외부 / 근거 링크`.
-
----
-
-## 3차수 · On-Demand Job 생성
-
-### [3-1] 화면의 설정 순서
-
-1. 학습 형태·Job명
-2. Framework·Failover·GPU·노드
-3. AI Training Image·레지스트리 접근
-4. Command·Volume/Object Storage·요약
-
-- **질문:** 이미지 안에 `train.py`가 없는데 Command가 그 파일을 호출하면?
-
-### [3-2] 제출 전 일곱 항목 점검
-
-`이름 / GPU 할당량 / 이미지 접근 / 코드 존재 / 명령 / 입력 마운트 / 출력 위치`
-
-[저장된 On-Demand 생성 화면](http://127.0.0.1:8080/reference/job-new.html)을 읽는다. 수업에서는 **생성을 누르지 않는다.** 로컬 고정 G6/L4 값은 SCP 전체 상품 선택 범위를 뜻하지 않는다.
-
----
-
-## 4차수 · Spot과 GPU Failover를 구분
-
-### [4-1] 셋은 다른 문제를 다룬다
-
-| 상황 | 의미 | 준비·확인 |
-|---|---|---|
-| Spot 자원 회수 | 유휴 자원을 돌려줘야 함 | 대기·중단·재개 조건 확인 |
-| GPU/하드웨어 장애 | 실행 중인 노드 고장 | Job Failover 적용 범위 확인 |
-| 학습 상태 손실 | 재시작 때 진행분 소실 | 체크포인트 저장·복원 코드 |
-
-- 코드·설정 오류는 GPU Failover로 해결되지 않는다.
-- **질문:** 노드를 바꾸기만 하면 이전 학습 단계가 돌아올까?
-
-### [4-2] 공개 기능 소개와 실제 생성 화면
-
-- SDS 공개 소개: Spot 중단·재개, GPU 장애 Failover, 체크포인트 기능을 각각 소개
-- [저장된 Spot 화면](http://127.0.0.1:8080/reference/job-spot.html): `Spot Training에서는 Job Failover 사용 불가` 표시
-- 결론: **Spot Job에 두 기능을 동시에 적용할 수 있는 조건은 실제 계정·리전에서 확인**
-
-### [4-3] AWS Managed Spot도 조건부
-
-- SageMaker가 Spot 중단 후 재시작·S3 체크포인트 이동을 관리
-- 학습 코드가 체크포인트를 저장·복원해야 이어서 학습
-- Spot 용량 부족 시 On-Demand 자동 전환 없음; 최대 대기 시간에 중지 가능
-
-**출처:** [SDS SAT](https://www.samsungsds.com/kr/aiml-simple-ai-training/simple-ai-training.html), [GPU Failover 기술 설명](https://www.samsungsds.com/kr/insights/multi-cluster-gpu-failover.html), [SageMaker Managed Spot](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html).
-
----
-
-## 5차수 · 실행 상태와 증거
-
-### [5-1] `Completed`가 대답하지 않는 것
-
-- 설정: 무엇을 요청했나?
-- 상태: 끝났나, 대기 중인가, 실패했나?
-- 로그: 무슨 일이 일어났나?
-- 평가: 얼마만큼 맞혔나?
-- 결과 파일: 무엇이 저장됐나?
-
-**질문:** `Completed` 하나로 모델 품질을 말할 수 있을까?
-
-### [5-2] 문제를 원인별로 분류
-
-`입력 누락 / 이미지 접근 실패 / Command 경로 오류 / GPU 할당 문제 / Spot 중단 / GPU 장애`
-
-- 코드·설정 오류: 입력·이미지·명령 수정
-- Spot 중단: 대기·재시작·체크포인트 확인
-- GPU 장애: 적용 가능한 Failover와 로그 확인
-
-### [5-3] 평가값의 출처 표시
-
-- 한국어 텍스트 test 700건: 정확도 16.0% → 85.29%
-- 이미지 test 2,000건: 11.2% → 86.2%
-- **AWS G6 Docker에서 측정, 로컬 UI로 가져온 값**
-- SCP SAT나 SageMaker Job을 실제 실행해 얻은 값으로 표기하지 않음
-
----
-
-## 6차수 · 상세·로그 읽기
-
-### [6-1] 두 Job 비교
-
-| 기록 | 확인할 필드 |
+### 1-2 책임 분담
+| 사용자 준비 | SAT가 관리하는 흐름 |
 |---|---|
-| [원본 demo](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details) | 이미지, Command, 리소스, 입력·출력 |
-| [텍스트 Job](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/details) | 동일 필드를 비교해 차이 기록 |
+| 데이터 형식·경로, 코드·이미지, 실행 명령 | GPU 자원 배치, Job 실행·상태 관리 |
 
-**질문:** 둘 다 `Completed`면 같은 과제인가?
+### 1-3 완료의 의미
+Completed는 실행 종료다. 모델 품질은 평가 자료로 별도 판정한다. AWS 서비스 비교는 8차수에서 다룬다.
 
-### [6-2] 로그 세 줄만 고르기
+## 2차수 · 원본 demo 입출력
 
-`시작 근거 / 학습·평가 근거 / 종료 근거`
+### 2-1 네 위치
+원본 스토리지 → 컨테이너 Mount Path → Command가 읽는 입력 → 결과 저장 위치
 
-- Job별로 실제 로그에서 찾고 시간·순서 기록
-- 에러는 해당 줄의 Command·입력 설정과 연결
-- 없는 GPU 시계열은 추측하지 않음
+### 2-2 화면 추적
+[입력 준비](http://127.0.0.1:8080/local#assets) → [원본 demo 상세](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details) → 결과 파일. 이미지 URL은 코드·런타임, Command는 실행 시작점이다.
 
----
+## 3차수 · On-Demand 생성
 
-## 7차수 · 결과 파일과 평가
+### 3-1 필드 순서
+학습 형태·Job명 → Framework·Failover → GPU·노드 → 이미지·인증 → Command → 스토리지 → 요약
 
-### [7-1] `Completed` 뒤에 볼 것
+### 3-2 제출 전 확인
+이미지 속 코드 존재, Command, 입력 마운트, 출력 경로, GPU 할당량을 대조한다. [저장된 생성 화면](http://127.0.0.1:8080/reference/job-new.html)에서는 Job을 제출하지 않는다.
 
-| 텍스트 Job | 이미지 Job |
+## 4차수 · Spot과 복구
+
+### 4-1 서로 다른 사건
+| 사건 | 확인할 것 |
 |---|---|
-| test 700건, 16.0%→85.29% | test 2,000건, 11.2%→86.2% |
-| `model/model.safetensors` | `model.pt` |
-| `comparison.json` | `comparison.json` |
+| Spot 회수 | 중단·대기·재개 조건 |
+| GPU 하드웨어 장애 | Job Failover 적용 범위 |
+| 코드·설정 오류 | 코드·경로·이미지 수정 |
+| 재시작 때 진행분 손실 | 체크포인트 저장·복원 코드 |
 
-[텍스트 비교](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/comparison) · [이미지 비교](http://127.0.0.1:8080/local#jobs/cb0e433e77965ac9ad283d14027ed2df/comparison)
+### 4-2 저장된 화면의 제한
+[Spot 생성 화면](http://127.0.0.1:8080/reference/job-spot.html)에는 Spot Training의 Job Failover 사용 불가 표시가 있다. 공식 기능 소개는 Spot 재개와 GPU 장애 Failover를 별개로 설명한다. 실제 동시 적용 조건은 계정·리전에서 확인한다.
 
-### [7-2] 이동성과 반출 지원
+## 5차수 · 상태와 진단
 
-- 파일에 접근 가능 ≠ 제품이 모든 모델의 반출을 보장
-- 확인할 것: 형식, 권한, 라이선스, 추론 런타임, 결과 경로
-- Bedrock 맞춤 모델은 Bedrock 관리 저장소에 보관
-- **질문:** 모델 가중치 파일만 있으면 다른 환경에서 즉시 동작할까?
+### 5-1 상태
+준비 → 대기 → 실행 → 종료. Completed와 모델 성능은 다른 판단이다.
 
----
+### 5-2 증거의 역할
+| 화면 | 답하는 질문 |
+|---|---|
+| 상세 | 무엇을 요청했는가 |
+| 모니터링 | 자원을 어떻게 사용했는가 |
+| 로그 | 무슨 사건이 있었는가 |
+| 평가 | 얼마나 맞혔는가 |
+| 결과 파일 | 무엇이 남았는가 |
 
-## 8차수 · 실무 선택 메모
+### 5-3 오류별 첫 확인
+입력 누락은 경로, 이미지 오류는 레지스트리, Command 오류는 코드·인자, 자원 대기는 할당량과 상태를 살핀다.
 
-### [8-1] 요구사항별 후보
+## 6차수 · 실제 상세와 로그
 
-| 요구사항 | 우선 후보 | 확인해야 할 조건 |
+[원본 demo](http://127.0.0.1:8080/local#jobs/b669419947d55d6991620cdf9bbcaa1f/details)와 [한국어 텍스트 Job](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/details)의 이미지·Command·리소스·입력 위치를 나란히 보여 준다. 두 로그에서 실제로 확인되는 시작·학습·종료 근거를 화면으로 제시한다. 없는 로그 문구는 채워 넣지 않는다.
+
+## 7차수 · 평가와 파일
+
+| Job | 평가셋 | 학습 전→후 정확도 | 모델 파일 |
+|---|---:|---:|---|
+| 한국어 텍스트 | 700건 | 16.0%→85.29% | model/model.safetensors |
+| 이미지 | 2,000건 | 11.2%→86.2% | model.pt |
+
+[텍스트 비교](http://127.0.0.1:8080/local#jobs/2dd8760c5b7b55dc8d440c0d18ad2a4e/comparison)와 [이미지 비교](http://127.0.0.1:8080/local#jobs/cb0e433e77965ac9ad283d14027ed2df/comparison)를 시연한다. comparison.json은 지표, 모델 파일은 가중치다. GPU 시계열이 보존되지 않은 기록은 없음으로 표시한다.
+
+## 8차수 · 서비스 선택 사례
+
+| 요구 | 후보 | 추가 확인 |
 |---|---|---|
-| 기존 학습 코드·이미지 유지 | SAT, SageMaker | GPU·리전·할당량·스토리지·BYOC |
-| 지원 기반 모델 조정 | Bedrock | 지원 모델·리전·데이터 형식·사용 비용 |
-| 중단 가능한 긴 학습 | SAT Spot, SageMaker Managed Spot | 체크포인트·대기·재개·Failover 적용 범위 |
+| 기존 학습 코드·이미지 유지 | SAT, SageMaker | GPU·리전·스토리지·BYOC 제공 |
+| 지원 기반 모델 조정 | Bedrock | 지원 모델·리전·데이터 형식 |
+| 중단 가능한 긴 학습 | SAT Spot, SageMaker Managed Spot | 체크포인트·대기 한도·Failover 범위 |
 
-### [8-2] 결론은 증거와 미확인 조건을 함께
-
-`요구사항 → 후보 선택 → 공식 근거 → 계정에서 확인할 것 → 전체 비용·종료 조건`
-
-- 가격 우열은 동일 모델·데이터·성공 기준의 견적으로 판단
-- 이번 과정에서는 신규 GPU·EC2 자원 생성 없음
-- [실무 비교표](SERVICE_COMPARISON.md)의 `확인한 근거와 한계`를 발표에 첨부
+[실무 비교표](SERVICE_COMPARISON.md)에서 근거와 미확인 조건을 함께 읽는다. 같은 모델·데이터·성공 기준의 견적 없이 가격 우열을 단정하지 않는다.
